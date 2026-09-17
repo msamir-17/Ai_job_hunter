@@ -52,8 +52,19 @@ ai_job_hunter/
 ### 1. Prerequisites
 * Python 3.10+
 * Node.js v18+ and npm v9+
+* Docker Desktop (for containerized PostgreSQL + pgvector)
 
-### 2. Backend Setup
+### 2. Local Database Setup (PostgreSQL + pgvector)
+```bash
+# Start containerized PostgreSQL 16 with pgvector extension
+docker compose up -d
+
+# Verify pgvector extension status
+docker exec -i ai_job_hunter_db psql -U postgres -d ai_job_hunter -c "CREATE EXTENSION IF NOT EXISTS vector;"
+docker exec -i ai_job_hunter_db psql -U postgres -d ai_job_hunter -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';"
+```
+
+### 3. Backend Setup
 ```bash
 cd backend
 python -m venv .venv

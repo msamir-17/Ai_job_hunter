@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "development-secret-key-change-in-production"
     
     # Database Settings
+    POSTGRES_USER: str = "postgres"
+    POSTGRES_PASSWORD: str = "postgres"
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "ai_job_hunter"
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ai_job_hunter"
     
     # LLM Settings
