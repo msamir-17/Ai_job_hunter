@@ -1,11 +1,21 @@
 import uuid
 from datetime import datetime
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    DateTime,
+   
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ForeignKey, String, Text, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
-from sqlalchemy import Boolean, Float, Integer
 
 
 class Base(DeclarativeBase):
@@ -124,8 +134,6 @@ class CandidateProfile(Base):
     cascade="all, delete-orphan",
     )
 
-
-
 class Resume(Base):
     """Uploaded resume and its extracted/parsed content."""
 
@@ -172,6 +180,14 @@ class Job(Base):
     """Job posting stored for search and candidate matching."""
 
     __tablename__ = "jobs"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "source",
+            "external_id",
+            name="uq_jobs_source_external_id",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -254,6 +270,18 @@ class JobMatch(Base):
     """Stores the matching analysis between a candidate profile and a job."""
 
     __tablename__ = "job_matches"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_profile_id",
+            "job_id",
+            name="uq_job_matches_candidate_job",
+        ),
+        CheckConstraint(
+            "llm_score IS NULL OR (llm_score >= 0 AND llm_score <= 100)",
+            name="ck_job_matches_llm_score",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -363,5 +391,53 @@ class Application(Base):
 
     job_match: Mapped["JobMatch"] = relationship(
         back_populates="applications",
+    )
+
+    generated_documents: Mapped[list["GeneratedDocument"]] = relationship(
+    back_populates="application",
+    cascade="all, delete-orphan",
+    )
+
+class GeneratedDocument(Base):
+    """
+    Stores AI-generated documents associated with an application.
+
+    Examples:
+    - Tailored resume bullets
+    - Cover letter
+    """
+
+    __tablename__ = "generated_documents"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("applications.id"),
+        nullable=False,
+    )
+
+    doc_type: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+    )
+
+    content: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    is_approved_by_user: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+    application: Mapped["Application"] = relationship(
+        back_populates="generated_documents",
     )
 
