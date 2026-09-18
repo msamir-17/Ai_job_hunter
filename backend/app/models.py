@@ -28,6 +28,11 @@ class User(Base):
 
     __tablename__ = "users"
 
+    applications: Mapped[list["Application"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -149,6 +154,7 @@ class Resume(Base):
         UUID(as_uuid=True),
         ForeignKey("candidate_profiles.id"),
         nullable=False,
+        index=True,
     )
 
     file_name: Mapped[str] = mapped_column(
@@ -293,12 +299,14 @@ class JobMatch(Base):
         UUID(as_uuid=True),
         ForeignKey("candidate_profiles.id"),
         nullable=False,
+        index=True,
     )
 
     job_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("jobs.id"),
         nullable=False,
+        index=True,
     )
 
     passed_deterministic: Mapped[bool] = mapped_column(
@@ -365,6 +373,7 @@ class Application(Base):
         UUID(as_uuid=True),
         ForeignKey("users.id"),
         nullable=False,
+        index=True,
     )
 
     job_match_id: Mapped[uuid.UUID] = mapped_column(
@@ -396,6 +405,10 @@ class Application(Base):
     generated_documents: Mapped[list["GeneratedDocument"]] = relationship(
     back_populates="application",
     cascade="all, delete-orphan",
+    )
+
+    user: Mapped["User"] = relationship(
+        back_populates="applications",
     )
 
 class GeneratedDocument(Base):
