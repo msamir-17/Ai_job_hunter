@@ -1,12 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
+from app.api.candidate_profile import router as candidate_profile_router
 
 app = FastAPI(
     title="AI Job Hunter Co-Pilot API",
     description="Backend API for AI Job Hunter Co-Pilot application",
     version="0.1.0",
 )
+
+# Register API Routers
+app.include_router(candidate_profile_router)
+
 
 # Configure CORS for frontend access
 app.add_middleware(
