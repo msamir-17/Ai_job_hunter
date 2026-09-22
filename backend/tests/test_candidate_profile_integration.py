@@ -3,7 +3,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
-from app.database import AsyncSessionLocal
+from app.database import AsyncSessionLocal, engine
 from app.main import app
 from app.models import CandidateProfile, User
 
@@ -11,6 +11,12 @@ from app.models import CandidateProfile, User
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+async def dispose_db_engine():
+    yield
+    await engine.dispose()
 
 
 @pytest.mark.anyio
