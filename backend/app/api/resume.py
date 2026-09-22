@@ -6,8 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
+from app.llm import BaseLLMProvider, get_llm_provider
 from app.models import CandidateProfile, Resume
-from app.schemas.resume import ResumeResponse
+from app.schemas.resume import ResumeExtractResponse, ResumeResponse
+from app.services.resume_extractor import extract_structured_resume_draft
 from app.services.resume_parser import parse_resume_file
 
 router = APIRouter(prefix="/api/v1/resumes", tags=["Resumes"])
@@ -61,7 +63,7 @@ async def upload_resume(
         candidate_profile_id=candidate_profile_id,
         file_name=filename,
         raw_text=raw_text,
-        parsed_json=None,  # Intentionally NULL for Step 1
+        parsed_json=None,  # Intentionally NULL until extraction is triggered
     )
     db.add(new_resume)
     await db.commit()
@@ -74,4 +76,56 @@ async def upload_resume(
         status="extracted",
         raw_text_length=len(new_resume.raw_text or ""),
         created_at=new_resume.created_at,
+    )
+
+
+@router.post(
+    "/{resume_id}/extract",
+    response_model=ResumeExtractResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Extract structured AI resume draft",
+    description="Uses configured LLM provider to extract structured candidate draft JSON into Resume.parsed_json. Leaves CandidateProfile untouched.",
+)
+async def extract_resume(
+    resume_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    provider: BaseLLMProvider = Depends(get_llm_provider),
+) -> ResumeExtractResponse:
+    # 1. Fetch Resume record by ID
+    stmt = select(Resume).where(Resume.id == resume_id)
+    result = await db.execute(stmt)
+    resume = result.scalar_one_or_none()
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Resume with id '{resume_id}' not found.",
+        )
+
+    # 2. Check that raw_text is present
+    if not resume.raw_text or not resume.raw_text.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Resume has no raw text available for extraction. Upload a valid document first.",
+        )
+
+    # 4. Perform structured AI extraction
+    try:
+        draft = await extract_structured_resume_draft(resume.raw_text, provider=provider)
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Structured extraction failed: {str(err)}",
+        )
+
+    # 5. Persist JSON draft into Resume.parsed_json (CandidateProfile remains untouched)
+    resume.parsed_json = draft.model_dump()
+    await db.commit()
+    await db.refresh(resume)
+
+    return ResumeExtractResponse(
+        id=resume.id,
+        candidate_profile_id=resume.candidate_profile_id,
+        file_name=resume.file_name,
+        status="draft_generated",
+        draft=draft,
     )
