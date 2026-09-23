@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import settings
 from app.api.candidate_profile import router as candidate_profile_router
+from app.api.jobs import router as jobs_router
 from app.api.resume import router as resume_router
 
 app = FastAPI(
@@ -13,6 +14,7 @@ app = FastAPI(
 # Register API Routers
 app.include_router(candidate_profile_router)
 app.include_router(resume_router)
+app.include_router(jobs_router)
 
 
 # Configure CORS for frontend access

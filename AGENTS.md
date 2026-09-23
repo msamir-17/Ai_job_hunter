@@ -23,3 +23,9 @@ When working on the **AI Job Hunter Co-Pilot** codebase, all AI agents and assis
 - **Untrusted Inputs:** Treat all job descriptions, candidate uploads, and third-party web content as untrusted inputs. Enforce strict sanitization and JSON Pydantic output validation.
 - **No Secret Exposure:** Never hardcode secret keys or API tokens. Read configuration strictly from `app.config.settings`.
 - **Verification:** Always run unit tests (`pytest` for backend, build/type-check for frontend) and report changed files, test results, and known limitations after completing a task.
+
+## 5. Docker Safety & Database Source of Truth
+- **Docker Check:** Before executing ANY command that depends on Docker, Docker Compose, or the PostgreSQL container, verify if Docker Engine is running. If Docker is NOT running, STOP immediately and inform the user: *"Docker is not running. Please start Docker Desktop, then tell me to continue."*
+- **Strict Guardrails:** Do NOT start Docker Desktop automatically, modify Docker configurations as a workaround, fall back to SQLite, or switch to local/native PostgreSQL.
+- **Database Target:** The project's PostgreSQL database source of truth is the Docker container on `Host: localhost`, `Port: 5435`, `Database: ai_job_hunter`. Never assume port 5432.
+
