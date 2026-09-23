@@ -8,7 +8,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.llm import BaseLLMProvider, get_llm_provider
 from app.models import CandidateProfile, Resume
-from app.schemas.resume import ResumeExtractResponse, ResumeResponse
+from app.schemas.candidate_profile import CandidateProfileResponse
+from app.schemas.resume import ResumeDraft, ResumeExtractResponse, ResumeResponse
+from app.services.profile_merger import merge_draft_into_candidate_profile
 from app.services.resume_extractor import extract_structured_resume_draft
 from app.services.resume_parser import parse_resume_file
 
@@ -108,7 +110,7 @@ async def extract_resume(
             detail="Resume has no raw text available for extraction. Upload a valid document first.",
         )
 
-    # 4. Perform structured AI extraction
+    # 3. Perform structured AI extraction
     try:
         draft = await extract_structured_resume_draft(resume.raw_text, provider=provider)
     except Exception as err:
@@ -117,7 +119,7 @@ async def extract_resume(
             detail=f"Structured extraction failed: {str(err)}",
         )
 
-    # 5. Persist JSON draft into Resume.parsed_json (CandidateProfile remains untouched)
+    # 4. Persist JSON draft into Resume.parsed_json (CandidateProfile remains untouched)
     resume.parsed_json = draft.model_dump()
     await db.commit()
     await db.refresh(resume)
@@ -129,3 +131,51 @@ async def extract_resume(
         status="draft_generated",
         draft=draft,
     )
+
+
+@router.post(
+    "/{resume_id}/confirm",
+    response_model=CandidateProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Confirm candidate-reviewed resume draft and merge into CandidateProfile",
+    description="Merges the user-reviewed ResumeDraft into the verified CandidateProfile, preserving existing verified candidate facts.",
+)
+async def confirm_resume_draft(
+    resume_id: UUID,
+    draft: ResumeDraft,
+    db: AsyncSession = Depends(get_db),
+) -> CandidateProfileResponse:
+    # 1. Fetch Resume record by ID
+    resume_stmt = select(Resume).where(Resume.id == resume_id)
+    resume_res = await db.execute(resume_stmt)
+    resume = resume_res.scalar_one_or_none()
+    if not resume:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Resume with id '{resume_id}' not found.",
+        )
+
+    # 2. Fetch associated CandidateProfile
+    profile_stmt = select(CandidateProfile).where(CandidateProfile.id == resume.candidate_profile_id)
+    profile_res = await db.execute(profile_stmt)
+    profile = profile_res.scalar_one_or_none()
+    if not profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Candidate profile with id '{resume.candidate_profile_id}' not found.",
+        )
+
+    # 3. Execute atomic merge logic
+    try:
+        merged_profile = merge_draft_into_candidate_profile(profile, draft)
+        db.add(merged_profile)
+        await db.commit()
+        await db.refresh(merged_profile)
+    except Exception as err:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to confirm and merge candidate profile: {str(err)}",
+        )
+
+    return CandidateProfileResponse.model_validate(merged_profile)
