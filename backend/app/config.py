@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: str = ""
     MISTRAL_API_KEY: str = ""
     
+    # Embedding Model Settings
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_DIMENSION: int = 384
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
