@@ -16,7 +16,7 @@ import { Job } from '../types/job';
 import { CandidateProfileResponse } from '../types/candidateProfile';
 import { PipelineRunResponse } from '../types/matching';
 import { listJobs, ingestJobs } from '../api/jobs';
-import { listCandidateProfiles } from '../api/candidateProfile';
+import { listCandidateProfiles, getActiveCandidateProfile } from '../api/candidateProfile';
 import {
   runMatchingPipeline,
   getCandidateJobMatches,
@@ -66,8 +66,13 @@ export const JobDiscoveryPage: React.FC = () => {
   const loadProfileAndInitialData = async () => {
     setIsLoadingProfile(true);
     try {
-      const profiles = await listCandidateProfiles(1);
-      const p = profiles.length > 0 ? profiles[0] : null;
+      let p: CandidateProfileResponse | null = null;
+      try {
+        p = await getActiveCandidateProfile();
+      } catch (err) {
+        const profiles = await listCandidateProfiles(1);
+        p = profiles.length > 0 ? profiles[0] : null;
+      }
       setProfile(p);
 
       // Load jobs

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target } from 'lucide-react';
 import { CandidateProfileResponse } from '../types/candidateProfile';
-import { getCandidateProfile } from '../api/candidateProfile';
+import { getCandidateProfile, getActiveCandidateProfile } from '../api/candidateProfile';
 import { Card } from '../components/ui/Card';
 import { Badge } from '../components/ui/Badge';
 import { Alert } from '../components/ui/Alert';
@@ -11,6 +11,22 @@ export const CandidateProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchActive = async () => {
+      setLoading(true);
+      try {
+        const data = await getActiveCandidateProfile();
+        setProfile(data);
+        setProfileIdInput(data.id);
+      } catch (err: any) {
+        // Silent catch if backend active profile fails
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchActive();
+  }, []);
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
