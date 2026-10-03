@@ -5,6 +5,8 @@ import { Header } from './components/layout/Header';
 import { Home } from './pages/Home';
 import { ResumeReviewPage } from './pages/ResumeReviewPage';
 import { CandidateProfilePage } from './pages/CandidateProfilePage';
+import { JobDiscoveryPage } from './pages/JobDiscoveryPage';
+import { ApplicationsKanbanPage } from './pages/ApplicationsKanbanPage';
 
 const queryClient = new QueryClient();
 
@@ -17,8 +19,10 @@ const App: React.FC = () => {
           <main className="flex-1">
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/resume-review" element={<ResumeReviewPage />} />
               <Route path="/profile" element={<CandidateProfilePage />} />
+              <Route path="/resume-review" element={<ResumeReviewPage />} />
+              <Route path="/jobs" element={<JobDiscoveryPage />} />
+              <Route path="/applications" element={<ApplicationsKanbanPage />} />
             </Routes>
           </main>
         </div>

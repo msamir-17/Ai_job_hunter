@@ -68,6 +68,23 @@ async def create_candidate_profile(
 
 
 @router.get(
+    "",
+    response_model=list[CandidateProfileResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List candidate profiles",
+    description="Retrieves a list of candidate profiles stored in PostgreSQL.",
+)
+async def list_candidate_profiles(
+    limit: int = 10,
+    db: AsyncSession = Depends(get_db),
+) -> list[CandidateProfileResponse]:
+    stmt = select(CandidateProfile).order_by(CandidateProfile.created_at.desc()).limit(limit)
+    result = await db.execute(stmt)
+    profiles = result.scalars().all()
+    return list(profiles)
+
+
+@router.get(
     "/{profile_id}",
     response_model=CandidateProfileResponse,
     status_code=status.HTTP_200_OK,

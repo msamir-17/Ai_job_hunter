@@ -1,6 +1,14 @@
 import { apiClient } from './client';
 import { CandidateProfileResponse, CandidateProfileCreate } from '../types/candidateProfile';
 
+export async function listCandidateProfiles(
+  limit: number = 10
+): Promise<CandidateProfileResponse[]> {
+  return apiClient<CandidateProfileResponse[]>(`/api/v1/candidate-profile?limit=${limit}`, {
+    method: 'GET',
+  });
+}
+
 export async function getCandidateProfile(
   profileId: string
 ): Promise<CandidateProfileResponse> {

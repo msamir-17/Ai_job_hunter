@@ -1,14 +1,16 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bot, FileText, User, Home } from 'lucide-react';
+import { Bot, FileText, User, Home, Briefcase, Kanban } from 'lucide-react';
 
 export const Header: React.FC = () => {
   const location = useLocation();
 
   const navItems = [
     { path: '/', label: 'Overview', icon: <Home className="w-4 h-4" /> },
-    { path: '/resume-review', label: 'Resume Review & HITL', icon: <FileText className="w-4 h-4" /> },
     { path: '/profile', label: 'Candidate Profile', icon: <User className="w-4 h-4" /> },
+    { path: '/resume-review', label: 'Resume Review', icon: <FileText className="w-4 h-4" /> },
+    { path: '/jobs', label: 'Job Discovery & Matching', icon: <Briefcase className="w-4 h-4" /> },
+    { path: '/applications', label: 'Kanban Board', icon: <Kanban className="w-4 h-4" /> },
   ];
 
   return (

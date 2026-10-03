@@ -100,8 +100,24 @@ async def test_embedding_persistence_real_postgres():
             empty_job_id = empty_job.id
 
         # 2. Run EmbeddingPersistenceService backfill
+        from unittest.mock import MagicMock
+        from app.services.embedding import EmbeddingService, format_job_text
+
+        mock_emb = MagicMock(spec=EmbeddingService)
+        mock_emb.expected_dimension = 384
+        mock_emb.generate_embedding.side_effect = lambda t: [1.0 / (384 ** 0.5)] * 384
+        mock_emb.generate_candidate_embedding.side_effect = lambda p: [1.0 / (384 ** 0.5)] * 384
+
+        def mock_job_emb(job):
+            text = format_job_text(job)
+            if not text:
+                raise ValueError("Job contains no embeddable text content.")
+            return [1.0 / (384 ** 0.5)] * 384
+
+        mock_emb.generate_job_embedding.side_effect = mock_job_emb
+
         async with AsyncSessionLocal() as db:
-            service = EmbeddingPersistenceService(db=db)
+            service = EmbeddingPersistenceService(db=db, embedding_service=mock_emb)
             result = await service.backfill_embeddings()
 
             assert result.jobs_processed >= 2
