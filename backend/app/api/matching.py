@@ -7,9 +7,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_db
+from app.llm import BaseLLMProvider, get_llm_provider
 from app.models import CandidateProfile, JobMatch
-from app.schemas.matching import BatchFilterResponse, FilterJobRequest, JobFilterResult
+from app.schemas.matching import (
+    AnalyzeJobMatchRequest,
+    BatchAnalyzeMatchesRequest,
+    BatchAnalyzeMatchesResponse,
+    BatchFilterResponse,
+    FilterJobRequest,
+    JobFilterResult,
+    JobMatchAnalysisResult,
+    PipelineRunRequest,
+    PipelineRunResponse,
+    VectorSearchRequest,
+    VectorSearchResponse,
+)
+from app.graph.workflow import run_matching_pipeline
 from app.services.deterministic_filter import DeterministicFilterService
+from app.services.llm_matching import LLMMatchingService
+from app.services.vector_search import VectorSearchService
 
 router = APIRouter(prefix="/api/v1/matching", tags=["Matching & Filtering"])
 
@@ -50,6 +66,138 @@ async def filter_jobs_deterministically(
         review_count=review_count,
         rejected_count=rejected_count,
         results=results,
+    )
+
+
+@router.post(
+    "/vector/search",
+    response_model=VectorSearchResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Search top semantic matches via pgvector cosine similarity",
+    description="Compares CandidateProfile dense vector against job embeddings in PostgreSQL using cosine distance (<=>). Ranks closest matches and persists vector_score into JobMatch.",
+)
+async def search_jobs_by_vector(
+    payload: VectorSearchRequest,
+    db: AsyncSession = Depends(get_db),
+) -> VectorSearchResponse:
+    service = VectorSearchService(db=db)
+    try:
+        results = await service.search_and_persist_matches(payload)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e),
+        )
+
+    return VectorSearchResponse(
+        candidate_profile_id=payload.candidate_profile_id,
+        total_matches=len(results),
+        results=results,
+    )
+
+
+@router.post(
+    "/llm/analyze",
+    response_model=JobMatchAnalysisResult,
+    status_code=status.HTTP_200_OK,
+    summary="Stage 3 LLM skill gap and match analysis for a single job",
+    description="Compares CandidateProfile against Job description using active LLM provider to extract matched skills, missing skills, match score (0-100), and rationale.",
+)
+async def analyze_single_job_match(
+    payload: AnalyzeJobMatchRequest,
+    db: AsyncSession = Depends(get_db),
+    provider: BaseLLMProvider = Depends(get_llm_provider),
+) -> JobMatchAnalysisResult:
+    service = LLMMatchingService(db=db, provider=provider)
+    try:
+        result = await service.analyze_single_match(
+            candidate_profile_id=payload.candidate_profile_id,
+            job_id=payload.job_id,
+        )
+        return result
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"LLM match analysis failed: {str(err)}",
+        )
+
+
+@router.post(
+    "/llm/analyze-batch",
+    response_model=BatchAnalyzeMatchesResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Stage 3 LLM batch skill gap analysis for top vector matches",
+    description="Evaluates top shortlisted / vector-ranked jobs for a candidate using the active LLM provider.",
+)
+async def analyze_batch_job_matches(
+    payload: BatchAnalyzeMatchesRequest,
+    db: AsyncSession = Depends(get_db),
+    provider: BaseLLMProvider = Depends(get_llm_provider),
+) -> BatchAnalyzeMatchesResponse:
+    service = LLMMatchingService(db=db, provider=provider)
+    try:
+        results = await service.analyze_batch_matches(
+            candidate_profile_id=payload.candidate_profile_id,
+            job_ids=payload.job_ids,
+            limit=payload.limit,
+            min_vector_score=payload.min_vector_score,
+        )
+        return BatchAnalyzeMatchesResponse(
+            candidate_profile_id=payload.candidate_profile_id,
+            total_analyzed=len(results),
+            results=results,
+        )
+    except ValueError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err))
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Batch LLM analysis failed: {str(err)}",
+        )
+
+
+@router.post(
+    "/pipeline/run",
+    response_model=PipelineRunResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Execute full LangGraph agent matching pipeline end-to-end",
+    description="Orchestrates Stage 1 Deterministic Filtering -> Stage 2 Vector Similarity -> Stage 3 LLM Skill Gap Analysis via stateful LangGraph workflow.",
+)
+async def run_pipeline_for_job_match(
+    payload: PipelineRunRequest,
+    db: AsyncSession = Depends(get_db),
+    provider: BaseLLMProvider = Depends(get_llm_provider),
+) -> PipelineRunResponse:
+    final_state = await run_matching_pipeline(
+        db=db,
+        candidate_profile_id=payload.candidate_profile_id,
+        job_id=payload.job_id,
+        llm_provider=provider,
+    )
+
+    if final_state.get("error_message"):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=final_state["error_message"],
+        )
+
+    return PipelineRunResponse(
+        candidate_profile_id=payload.candidate_profile_id,
+        job_id=payload.job_id,
+        passed_deterministic=final_state.get("passed_deterministic", False),
+        deterministic_status=final_state.get("deterministic_status"),
+        vector_score=final_state.get("vector_score"),
+        vector_passed=final_state.get("vector_passed"),
+        llm_score=final_state.get("llm_score"),
+        matched_skills=final_state.get("matched_skills", []),
+        missing_skills=final_state.get("missing_skills", []),
+        analysis_summary=final_state.get("analysis_summary"),
+        recommendation=final_state.get("recommendation"),
+        overall_status=final_state.get("overall_status", "review"),
+        current_stage=final_state.get("current_stage", "completed"),
+        error_message=final_state.get("error_message"),
     )
 
 
@@ -101,6 +249,8 @@ async def get_candidate_job_matches(
             "job_location": m.job.location if m.job else None,
             "job_is_remote": m.job.is_remote if m.job else False,
             "passed_deterministic": m.passed_deterministic,
+            "vector_score": m.vector_score,
+            "llm_score": m.llm_score,
             "status": m.status,
             "matched_skills": m.matched_skills or [],
             "missing_skills": m.missing_skills or [],
