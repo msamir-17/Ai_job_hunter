@@ -25,3 +25,9 @@ export async function createCandidateProfile(
     body: JSON.stringify(payload),
   });
 }
+
+export async function getActiveCandidateProfile(): Promise<CandidateProfileResponse> {
+  return apiClient<CandidateProfileResponse>('/api/v1/candidate-profile/active', {
+    method: 'GET',
+  });
+}

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { User, Key, Plus, CheckCircle, AlertCircle, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Key, Plus, CheckCircle, AlertCircle, RefreshCw, Zap } from 'lucide-react';
 import { CandidateProfileResponse } from '../../types/candidateProfile';
-import { getCandidateProfile, createCandidateProfile } from '../../api/candidateProfile';
+import { getCandidateProfile, createCandidateProfile, getActiveCandidateProfile } from '../../api/candidateProfile';
 import { Card } from '../ui/Card';
 import { Alert } from '../ui/Alert';
 
@@ -23,6 +23,25 @@ export const CandidateProfileSelector: React.FC<CandidateProfileSelectorProps> =
   const [newUserId, setNewUserId] = useState<string>('');
   const [newHeadline, setNewHeadline] = useState<string>('');
   const [newSummary, setNewSummary] = useState<string>('');
+
+  const handleAutoConnect = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const active = await getActiveCandidateProfile();
+      onProfileSelect(active);
+    } catch (err: any) {
+      setError(err.message || 'Failed to initialize active candidate profile.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!currentProfile) {
+      handleAutoConnect();
+    }
+  }, []);
 
   const handleFetchProfile = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -132,6 +151,18 @@ export const CandidateProfileSelector: React.FC<CandidateProfileSelectorProps> =
                 No Candidate Profile is currently active. You must connect to an existing candidate profile or explicitly create one before triggering resume extraction.
               </p>
               
+              <div className="flex flex-wrap gap-2 mb-3">
+                <button
+                  type="button"
+                  onClick={handleAutoConnect}
+                  disabled={loading}
+                  className="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  Auto-Connect / Create Default Profile
+                </button>
+              </div>
+
               <form onSubmit={handleFetchProfile} className="flex flex-col sm:flex-row gap-2">
                 <div className="relative flex-1">
                   <Key className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
@@ -139,7 +170,7 @@ export const CandidateProfileSelector: React.FC<CandidateProfileSelectorProps> =
                     type="text"
                     value={profileIdInput}
                     onChange={(e) => setProfileIdInput(e.target.value)}
-                    placeholder="Enter existing Candidate Profile UUID..."
+                    placeholder="Or enter existing Candidate Profile UUID..."
                     className="w-full pl-9 pr-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-mono"
                   />
                 </div>

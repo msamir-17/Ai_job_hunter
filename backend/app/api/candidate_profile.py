@@ -78,10 +78,51 @@ async def list_candidate_profiles(
     limit: int = 10,
     db: AsyncSession = Depends(get_db),
 ) -> list[CandidateProfileResponse]:
-    stmt = select(CandidateProfile).order_by(CandidateProfile.created_at.desc()).limit(limit)
+    stmt = select(CandidateProfile).order_by(CandidateProfile.id.desc()).limit(limit)
     result = await db.execute(stmt)
     profiles = result.scalars().all()
     return list(profiles)
+
+
+@router.get(
+    "/active",
+    response_model=CandidateProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get or initialize active candidate profile",
+    description="Returns the active candidate profile, or creates a default demo user and profile if none exists.",
+)
+async def get_or_create_active_profile(
+    db: AsyncSession = Depends(get_db),
+) -> CandidateProfileResponse:
+    stmt = select(CandidateProfile).order_by(CandidateProfile.id.desc()).limit(1)
+    res = await db.execute(stmt)
+    existing = res.scalar_one_or_none()
+    if existing:
+        return existing
+
+    # Create default user
+    demo_user = User(
+        id=uuid.uuid4(),
+        email="candidate@aijobhunter.local",
+        hashed_password="demo_password_hash",
+        full_name="Job Seeker",
+    )
+    db.add(demo_user)
+    await db.flush()
+
+    # Create candidate profile
+    new_profile = CandidateProfile(
+        id=uuid.uuid4(),
+        user_id=demo_user.id,
+        headline="AI & Machine Learning Engineer",
+        summary="Candidate profile ready for resume upload and grounding.",
+        skills=["Python", "PyTorch", "FastAPI", "PostgreSQL", "Machine Learning"],
+        target_titles=["AI Engineer", "ML Engineer", "Software Engineer"],
+    )
+    db.add(new_profile)
+    await db.commit()
+    await db.refresh(new_profile)
+    return new_profile
 
 
 @router.get(
