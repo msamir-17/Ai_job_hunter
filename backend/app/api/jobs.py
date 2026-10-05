@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters import ManualJobSourceAdapter, RemotiveJobSourceAdapter
+from app.adapters import AdzunaJobSourceAdapter, ManualJobSourceAdapter, RemotiveJobSourceAdapter
 from app.database import get_db
 from app.models import Job
 from app.schemas.job import IngestionRequest, IngestionResult, JobResponse
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
     response_model=IngestionResult,
     status_code=status.HTTP_200_OK,
     summary="Trigger job ingestion pipeline",
-    description="Fetches raw jobs from selected adapter ('manual' or 'remotive'), normalizes, validates, and idempotently persists into PostgreSQL.",
+    description="Fetches raw jobs from selected adapter ('manual', 'remotive', or 'adzuna'), normalizes, validates, and idempotently persists into PostgreSQL.",
 )
 async def ingest_jobs(
     payload: IngestionRequest,
@@ -29,10 +29,12 @@ async def ingest_jobs(
         adapter = ManualJobSourceAdapter()
     elif source_key == "remotive":
         adapter = RemotiveJobSourceAdapter()
+    elif source_key == "adzuna":
+        adapter = AdzunaJobSourceAdapter()
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported job source adapter '{payload.source}'. Supported sources: 'manual', 'remotive'.",
+            detail=f"Unsupported job source adapter '{payload.source}'. Supported sources: 'manual', 'remotive', 'adzuna'.",
         )
 
     service = JobIngestionService(db)

@@ -18,7 +18,7 @@ export interface Job {
 }
 
 export interface IngestionRequest {
-  source: 'manual' | 'remotive';
+  source: 'manual' | 'remotive' | 'adzuna' | string;
   limit?: number;
   use_cache?: boolean;
 }
