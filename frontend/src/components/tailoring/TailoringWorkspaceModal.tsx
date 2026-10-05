@@ -72,35 +72,56 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
 
       // Format resume bullets into editable markdown text
       const bulletSections: string[] = [];
-      bulletSections.push(`### Target Role: ${result.resume_draft.target_job_title}\n`);
-      bulletSections.push(`**Professional Summary:**\n${result.resume_draft.tailored_summary}\n`);
-      bulletSections.push(`**Highlighted Verified Skills:**\n${result.resume_draft.highlighted_skills.join(', ')}\n`);
+      const rd = result.resume_draft || {};
+      bulletSections.push(`### Target Role: ${rd.target_role || rd.target_job_title || job.title}\n`);
+      if (rd.tailored_summary) {
+        bulletSections.push(`**Professional Summary:**\n${rd.tailored_summary}\n`);
+      }
+      const skills = rd.highlighted_skills || [];
+      if (skills.length > 0) {
+        bulletSections.push(`**Highlighted Verified Skills:**\n${skills.join(', ')}\n`);
+      }
       bulletSections.push('**Tailored Experience Bullets:**');
 
-      for (const [company, bullets] of Object.entries(result.resume_draft.tailored_experience_bullets)) {
-        bulletSections.push(`\n*${company}*`);
-        bullets.forEach((b) => bulletSections.push(`• ${b}`));
+      if (rd.bullets && rd.bullets.length > 0) {
+        rd.bullets.forEach((b) => {
+          const comp = b.source_experience_company ? ` (${b.source_experience_company})` : '';
+          const skill = b.relevant_skill ? ` [Skill: ${b.relevant_skill}]` : '';
+          bulletSections.push(`• ${b.bullet_point}${comp}${skill}`);
+        });
+      } else if (rd.tailored_experience_bullets) {
+        for (const [company, bullets] of Object.entries(rd.tailored_experience_bullets)) {
+          bulletSections.push(`\n*${company}*`);
+          (bullets || []).forEach((b) => bulletSections.push(`• ${b}`));
+        }
       }
       const formattedResume = bulletSections.join('\n');
       setResumeText(formattedResume);
 
       // Format cover letter
-      const cl = result.cover_letter_draft;
-      const formattedCL = [
-        `Dear Hiring Team at ${cl.recipient_company || job.company},`,
-        '',
-        cl.opening_paragraph,
-        '',
-        ...cl.body_paragraphs,
-        '',
-        cl.closing_paragraph,
-        '',
-        cl.call_to_action,
-        '',
-        'Sincerely,',
-        'Candidate',
-      ].join('\n');
-      setCoverLetterText(formattedCL);
+      const cl = result.cover_letter || result.cover_letter_draft || {} as any;
+      if (cl.full_text) {
+        setCoverLetterText(cl.full_text);
+      } else {
+        const bodyParagraphs = cl.body_paragraphs || [];
+        const formattedCL = [
+          `Dear ${cl.recipient || 'Hiring Team'} at ${cl.recipient_company || job.company},`,
+          '',
+          cl.opening_paragraph || '',
+          '',
+          ...bodyParagraphs,
+          '',
+          cl.closing_paragraph || '',
+          '',
+          cl.call_to_action || '',
+          '',
+          'Sincerely,',
+          'Candidate',
+        ].filter(line => line !== undefined).join('\n');
+        setCoverLetterText(formattedCL);
+      }
+
+      setAuditResult(result.audit_result);
 
       setAuditResult(result.audit_result);
     } catch (err: any) {
@@ -214,7 +235,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
           {/* Anti-Hallucination Audit Indicator */}
           {auditResult && (
             <div className="flex items-center gap-2">
-              {auditResult.audit_status === 'PASS' ? (
+              {(auditResult.is_grounded ?? auditResult.audit_status === 'PASS') ? (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/30">
                   <ShieldCheck className="w-4 h-4 text-emerald-400" />
                   <span>Audit PASS: 100% Grounded</span>
@@ -222,7 +243,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
               ) : (
                 <div className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-300 border border-amber-500/30">
                   <ShieldAlert className="w-4 h-4 text-amber-400" />
-                  <span>Flagged {auditResult.unverified_skills_flagged.length} unverified skills</span>
+                  <span>Flagged {(auditResult.hallucinated_terms || auditResult.unverified_skills_flagged || []).length} unverified skills</span>
                 </div>
               )}
 
@@ -264,13 +285,13 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
           ) : (
             <div className="space-y-4">
               {/* Audit Details Banner if flagged */}
-              {auditResult && auditResult.audit_status === 'FLAGGED' && (
+              {auditResult && !(auditResult.is_grounded ?? auditResult.audit_status === 'PASS') && (
                 <div className="p-3 bg-amber-950/30 border border-amber-800/40 rounded-xl text-xs space-y-1">
                   <div className="font-semibold text-amber-300 flex items-center gap-1.5">
                     <ShieldAlert className="w-4 h-4" /> Potential Unverified Skills Detected:
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1">
-                    {auditResult.unverified_skills_flagged.map((skill, idx) => (
+                    {(auditResult.hallucinated_terms || auditResult.unverified_skills_flagged || []).map((skill, idx) => (
                       <span
                         key={idx}
                         className="px-2 py-0.5 rounded bg-amber-900/40 text-amber-200 border border-amber-700/50 text-[11px]"

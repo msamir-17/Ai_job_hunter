@@ -214,13 +214,15 @@ export const JobDiscoveryPage: React.FC = () => {
   };
 
   // Filtered jobs
-  const filteredJobs = jobs.filter((job) => {
+  const filteredJobs = (jobs || []).filter((job) => {
+    if (!job) return false;
     if (remoteOnly && !job.is_remote) return false;
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      const matchTitle = job.title.toLowerCase().includes(query);
-      const matchCompany = job.company.toLowerCase().includes(query);
-      const matchReq = job.requirements.some((r) => r.toLowerCase().includes(query));
+      const matchTitle = (job.title || '').toLowerCase().includes(query);
+      const matchCompany = (job.company || '').toLowerCase().includes(query);
+      const reqs = job.requirements || [];
+      const matchReq = reqs.some((r) => r && r.toLowerCase().includes(query));
       if (!matchTitle && !matchCompany && !matchReq) return false;
     }
     return true;
@@ -429,7 +431,7 @@ export const JobDiscoveryPage: React.FC = () => {
 
                   {/* Requirements Tags */}
                   <div className="flex flex-wrap gap-1.5 mt-3">
-                    {job.requirements.slice(0, 5).map((req, idx) => (
+                    {(job.requirements || []).slice(0, 5).map((req, idx) => (
                       <span
                         key={idx}
                         className="px-2 py-0.5 rounded text-[11px] bg-slate-950 text-slate-300 border border-slate-800"
@@ -437,9 +439,9 @@ export const JobDiscoveryPage: React.FC = () => {
                         {req}
                       </span>
                     ))}
-                    {job.requirements.length > 5 && (
+                    {(job.requirements || []).length > 5 && (
                       <span className="text-[10px] text-slate-500 font-mono py-0.5">
-                        +{job.requirements.length - 5}
+                        +{(job.requirements || []).length - 5}
                       </span>
                     )}
                   </div>

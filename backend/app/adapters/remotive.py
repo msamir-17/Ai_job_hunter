@@ -39,7 +39,7 @@ class RemotiveJobSourceAdapter(BaseJobSourceAdapter):
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
                 response = await client.get(REMOTIVE_API_URL, params={"category": "software-dev"})
-                response.raise_for_error()
+                response.raise_for_status()
                 data = response.json()
         except Exception as err:
             raise RuntimeError(f"Failed to fetch jobs from Remotive API: {str(err)}") from err
