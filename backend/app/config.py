@@ -30,10 +30,11 @@ class Settings(BaseSettings):
     ADZUNA_APP_ID: str = ""
     ADZUNA_APP_KEY: str = ""
     
-    # Embedding Model Settings
-    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
-    EMBEDDING_DIMENSION: int = 384
-    
+    # JEV System One Decision Model Settings
+    JEV_API_KEY: str = ""
+    JEV_CONFIDENCE_THRESHOLD: float = 0.70
+    JEV_ENABLED: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

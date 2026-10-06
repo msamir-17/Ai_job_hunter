@@ -11,10 +11,17 @@ class FilterConfig(BaseModel):
         le=10.0,
         description="Maximum allowed experience gap in years before hard rejection",
     )
+    max_experience_required: float | None = Field(
+        default=None,
+        ge=0.0,
+        le=30.0,
+        description="Maximum preferred job experience ceiling in years (e.g. 3.0 for roles requiring under 3 yrs)",
+    )
     synonym_mappings: dict[str, list[str]] | None = Field(
         default=None,
         description="Optional title synonym mappings to override defaults",
     )
+
 
 
 class FilterJobRequest(BaseModel):
@@ -208,6 +215,42 @@ class PipelineRunResponse(BaseModel):
     overall_status: str
     current_stage: str
     error_message: str | None = None
+
+
+class JevJobEvalResult(BaseModel):
+    """Structured decision output from Jev System One model for candidate-job matching."""
+
+    job_id: UUID
+    candidate_profile_id: UUID
+    title: str
+    company: str
+    is_qualified: bool = Field(description="Jev Noul decision: candidate meets core qualifications")
+    qualification_confidence: float = Field(ge=0.0, le=1.0, description="Calibrated confidence probability")
+    skill_score: int = Field(ge=1, le=5, description="Jev Score: candidate skill overlap on 1-5 scale")
+    domain_fit: str = Field(description="Jev Choice: 'Direct Fit', 'Adjacent Role', or 'Mismatch'")
+    meets_experience_ceiling: bool = Field(description="Jev Noul: role is within preferred experience ceiling")
+    passed_jev_filter: bool = Field(description="True if confidence >= threshold and meets criteria")
+    evaluation_summary: str = Field(description="Brief structured summary of Jev decision")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class BatchJevEvalRequest(BaseModel):
+    """Request schema for batch evaluation using Jev System One model."""
+
+    candidate_profile_id: UUID
+    job_ids: list[UUID] | None = Field(default=None, description="Optional job IDs to evaluate; if None, uses top vector matches")
+    max_experience_years: float = Field(default=3.0, ge=0.0, le=20.0, description="Maximum required experience ceiling preference")
+    confidence_threshold: float = Field(default=0.70, ge=0.0, le=1.0, description="Minimum confidence cutoff to pass filter")
+
+
+class BatchJevEvalResponse(BaseModel):
+    """Summary response for batch Jev System One evaluation."""
+
+    candidate_profile_id: UUID
+    total_evaluated: int
+    passed_count: int
+    results: list[JevJobEvalResult]
 
 
 

@@ -215,13 +215,25 @@ class DeterministicFilterService:
         candidate_exp: float,
         job_min_exp: float | None,
     ) -> RuleResult:
-        """Evaluate experience gap rule."""
+        """Evaluate experience gap rule and candidate max preferred experience ceiling."""
         if job_min_exp is None:
             return RuleResult(
                 rule_name="Experience",
                 status="review",
                 reason_code="EXP_REQUIREMENT_UNSPECIFIED",
                 explanation="Job description does not specify required experience.",
+            )
+
+        # Check candidate's maximum preferred experience ceiling (e.g. only roles requiring <= 3 years)
+        if self.config.max_experience_required is not None and job_min_exp > self.config.max_experience_required:
+            return RuleResult(
+                rule_name="Experience",
+                status="reject",
+                reason_code="EXCEEDS_MAX_PREFERRED_EXP",
+                explanation=(
+                    f"Job requires {job_min_exp:.1f} yrs experience, exceeding candidate preference ceiling of "
+                    f"{self.config.max_experience_required:.1f} yrs."
+                ),
             )
 
         gap = max(0.0, job_min_exp - candidate_exp)

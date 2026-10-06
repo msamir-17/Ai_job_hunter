@@ -187,3 +187,50 @@ def test_evaluate_job_overall_precedence():
     res_reject = service.evaluate_job(cand, job_reject)
     assert res_reject.overall_status == "rejected"
     assert res_reject.passed_deterministic is False  # passed_deterministic is FALSE for REJECTED
+
+
+def test_max_experience_required_ceiling_preference():
+    """Verify that jobs requiring more than candidate's max_experience_required preference are rejected."""
+    cand = CandidateProfile(
+        id=uuid.uuid4(),
+        headline="Junior ML Engineer",
+        target_titles=["AI Engineer"],
+        skills=["Python"],
+        experience=[],  # Fresher (0 years)
+    )
+
+    # Config with ceiling of 3.0 years
+    config = FilterConfig(max_experience_required=3.0, max_allowed_experience_gap=5.0)
+    service = DeterministicFilterService(config=config)
+
+    # Job requiring 2 years -> within <= 3.0 yrs ceiling
+    job_under_cap = Job(
+        id=uuid.uuid4(),
+        source="manual",
+        external_id="ext_under",
+        title="AI Engineer",
+        company="Company X",
+        description_raw="Requires 2 years of experience.",
+        is_remote=True,
+    )
+    res_under = service.evaluate_job(cand, job_under_cap)
+    exp_rule_under = next(r for r in res_under.rule_results if r.rule_name == "Experience")
+    assert exp_rule_under.status != "reject"
+
+    # Job requiring 4 years -> exceeds 3.0 yrs ceiling -> REJECTED
+    job_over_cap = Job(
+        id=uuid.uuid4(),
+        source="manual",
+        external_id="ext_over",
+        title="AI Engineer",
+        company="Company Y",
+        description_raw="Requires 4 years of experience.",
+        is_remote=True,
+    )
+    res_over = service.evaluate_job(cand, job_over_cap)
+    exp_rule_over = next(r for r in res_over.rule_results if r.rule_name == "Experience")
+    assert exp_rule_over.status == "reject"
+    assert exp_rule_over.reason_code == "EXCEEDS_MAX_PREFERRED_EXP"
+    assert res_over.overall_status == "rejected"
+    assert res_over.passed_deterministic is False
+

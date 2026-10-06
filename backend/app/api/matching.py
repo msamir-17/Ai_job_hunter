@@ -8,12 +8,14 @@ from sqlalchemy.orm import selectinload
 
 from app.database import get_db
 from app.llm import BaseLLMProvider, get_llm_provider
-from app.models import CandidateProfile, JobMatch
+from app.models import CandidateProfile, Job, JobMatch
 from app.schemas.matching import (
     AnalyzeJobMatchRequest,
     BatchAnalyzeMatchesRequest,
     BatchAnalyzeMatchesResponse,
     BatchFilterResponse,
+    BatchJevEvalRequest,
+    BatchJevEvalResponse,
     FilterJobRequest,
     JobFilterResult,
     JobMatchAnalysisResult,
@@ -24,6 +26,7 @@ from app.schemas.matching import (
 )
 from app.graph.workflow import run_matching_pipeline
 from app.services.deterministic_filter import DeterministicFilterService
+from app.services.jev_matching import JevMatchingService
 from app.services.llm_matching import LLMMatchingService
 from app.services.vector_search import VectorSearchService
 
@@ -258,3 +261,70 @@ async def get_candidate_job_matches(
         })
 
     return output
+
+
+@router.post(
+    "/jev/evaluate",
+    response_model=BatchJevEvalResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Stage 2.5 Jev System One Fast-Pass Matching Filter",
+    description="Fast evaluation (~100ms/job) filtering candidates and enforcing experience ceiling preferences using Jev.",
+)
+async def evaluate_matches_with_jev(
+    payload: BatchJevEvalRequest,
+    db: AsyncSession = Depends(get_db),
+) -> BatchJevEvalResponse:
+    # 1. Fetch CandidateProfile
+    stmt_candidate = select(CandidateProfile).where(CandidateProfile.id == payload.candidate_profile_id)
+    res_candidate = await db.execute(stmt_candidate)
+    candidate = res_candidate.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"CandidateProfile with ID {payload.candidate_profile_id} not found.",
+        )
+
+    # 2. Fetch Jobs
+    if payload.job_ids:
+        stmt_jobs = select(Job).where(Job.id.in_(payload.job_ids))
+    else:
+        # Default to jobs that passed Stage 1 deterministic filtering
+        stmt_matches = (
+            select(JobMatch.job_id)
+            .where(
+                JobMatch.candidate_profile_id == payload.candidate_profile_id,
+                JobMatch.passed_deterministic.is_(True),
+            )
+            .limit(30)
+        )
+        res_match_ids = await db.execute(stmt_matches)
+        job_ids = list(res_match_ids.scalars().all())
+        if not job_ids:
+            return BatchJevEvalResponse(
+                candidate_profile_id=candidate.id,
+                total_evaluated=0,
+                passed_count=0,
+                results=[],
+            )
+        stmt_jobs = select(Job).where(Job.id.in_(job_ids))
+
+    res_jobs = await db.execute(stmt_jobs)
+    jobs = list(res_jobs.scalars().all())
+
+    # 3. Evaluate with Jev
+    jev_service = JevMatchingService(confidence_threshold=payload.confidence_threshold)
+    results = await jev_service.evaluate_batch(
+        candidate=candidate,
+        jobs=jobs,
+        max_experience_years=payload.max_experience_years,
+    )
+
+    passed_count = sum(1 for r in results if r.passed_jev_filter)
+
+    return BatchJevEvalResponse(
+        candidate_profile_id=candidate.id,
+        total_evaluated=len(results),
+        passed_count=passed_count,
+        results=results,
+    )
+
