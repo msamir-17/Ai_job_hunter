@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>AI Job Hunter Helper</title>
+  <style>
+    body {
+      width: 320px;
+      font-family: system-ui, -apple-system, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #0f172a;
+      color: #f8fafc;
+    }
+    h2 {
+      font-size: 16px;
+      margin-top: 0;
+      color: #38bdf8;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-card {
+      background: #1e293b;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #334155;
+      margin-bottom: 16px;
+      font-size: 13px;
+    }
+    .btn {
+      width: 100%;
+      padding: 10px;
+      background: #0284c7;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #0369a1;
+    }
+    .footer {
+      font-size: 11px;
+      color: #94a3b8;
+      margin-top: 12px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <h2><span>🎯</span> AI Job Hunter Sidecar</h2>
+  <div class="status-card">
+    <div><strong>HITL Guardrail:</strong> Active</div>
+    <div style="color: #4ade80; margin-top: 4px;">Ready to Autofill Form</div>
+  </div>
+  <button id="autofill-btn" class="btn">Auto-Fill Application Form</button>
+  <div class="footer">Human Review Required. Never Auto-Submits.</div>
+  <script src="popup.js"></script>
+</body>
+</html>

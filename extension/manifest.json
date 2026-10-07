@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "AI Job Hunter — Application Helper",
+  "version": "1.0.0",
+  "description": "Human-in-the-Loop Chrome Extension for auto-filling job application fields safely from your AI Job Hunter profile.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "https://*.greenhouse.io/*",
+    "https://*.lever.co/*",
+    "https://*.workday.com/*",
+    "https://*.linkedin.com/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icon.png",
+      "48": "icon.png",
+      "128": "icon.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.greenhouse.io/*",
+        "https://*.lever.co/*",
+        "https://*.workday.com/*",
+        "https://*.linkedin.com/*"
+      ],
+      "js": ["content_script.js"]
+    }
+  ]
+}
