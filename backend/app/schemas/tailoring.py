@@ -14,6 +14,11 @@ class TailoredResumeBullet(BaseModel):
     grounding_rationale: str = Field(
         description="Explicit explanation of which verified candidate fact this bullet is grounded in",
     )
+    cited_fact_ids: list[str] = Field(
+        default_factory=list,
+        description="Verified Candidate Profile Fact IDs (e.g. ['fact_exp_01', 'fact_skill_02']) supporting this bullet",
+    )
+
 
 
 class TailoredResumeDraft(BaseModel):
