@@ -186,7 +186,10 @@ class LLMMatchingService:
         match.analysis_summary = analysis.analysis_summary
         match.status = new_status
 
+        await self._db.flush()
+
         return JobMatchAnalysisResult(
+            id=match.id,
             job_id=job.id,
             candidate_profile_id=candidate.id,
             title=job.title or "",

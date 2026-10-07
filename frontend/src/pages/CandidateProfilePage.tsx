@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target } from 'lucide-react';
+import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy } from 'lucide-react';
 import { CandidateProfileResponse } from '../types/candidateProfile';
-import { getCandidateProfile, getActiveCandidateProfile } from '../api/candidateProfile';
+import { getCandidateProfile, getActiveCandidateProfile, updateCandidateProfile, deleteCandidateProfile } from '../api/candidateProfile';
 import { Card } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
 import { Alert } from '../components/ui/Alert';
 
 export const CandidateProfilePage: React.FC = () => {
@@ -11,6 +10,16 @@ export const CandidateProfilePage: React.FC = () => {
   const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  // Edit Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [editHeadline, setEditHeadline] = useState<string>('');
+  const [editSummary, setEditSummary] = useState<string>('');
+  const [editAchievements, setEditAchievements] = useState<string>('');
+  const [editSkills, setEditSkills] = useState<string>('');
+  const [editTargetTitles, setEditTargetTitles] = useState<string>('');
 
   useEffect(() => {
     const fetchActive = async () => {
@@ -33,11 +42,91 @@ export const CandidateProfilePage: React.FC = () => {
     if (!profileIdInput.trim()) return;
     setLoading(true);
     setError(null);
+    setSuccessMsg(null);
     try {
       const data = await getCandidateProfile(profileIdInput.trim());
       setProfile(data);
     } catch (err: any) {
       setError(err.message || 'Candidate profile not found.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openEditModal = () => {
+    if (!profile) return;
+    setEditHeadline(profile.headline || '');
+
+    const rawSummary = profile.summary || '';
+    if (rawSummary.includes('Key Achievements & Certifications:')) {
+      const parts = rawSummary.split('Key Achievements & Certifications:');
+      setEditSummary(parts[0].trim());
+      setEditAchievements(parts[1].trim());
+    } else {
+      setEditSummary(rawSummary);
+      setEditAchievements('');
+    }
+
+    setEditSkills((profile.skills || []).map((s: any) => (typeof s === 'string' ? s : s.name || '')).join(', '));
+    setEditTargetTitles((profile.target_titles || []).join(', '));
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profile) return;
+    setIsSaving(true);
+    setError(null);
+    setSuccessMsg(null);
+
+    try {
+      const skillsArray = editSkills
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+
+      const targetTitlesArray = editTargetTitles
+        .split(',')
+        .map((t) => t.trim())
+        .filter((t) => t.length > 0);
+
+      let finalSummary = editSummary.trim();
+      if (editAchievements.trim()) {
+        finalSummary = `${finalSummary}\n\nKey Achievements & Certifications:\n${editAchievements.trim()}`;
+      }
+
+      const updated = await updateCandidateProfile(profile.id, {
+        headline: editHeadline,
+        summary: finalSummary,
+        skills: skillsArray,
+        target_titles: targetTitlesArray,
+      });
+
+      setProfile(updated);
+      setIsEditModalOpen(false);
+      setSuccessMsg('Profile updated successfully with achievements in PostgreSQL database!');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update profile.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleDeleteProfile = async () => {
+    if (!profile) return;
+    if (!window.confirm('Are you sure you want to delete this Candidate Profile from PostgreSQL? This action cannot be undone.')) {
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      await deleteCandidateProfile(profile.id);
+      setProfile(null);
+      setProfileIdInput('');
+      setSuccessMsg('Candidate profile deleted successfully.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete profile.');
     } finally {
       setLoading(false);
     }
@@ -84,11 +173,12 @@ export const CandidateProfilePage: React.FC = () => {
         </form>
       </Card>
 
-      {error && <Alert variant="error" className="mb-8">{error}</Alert>}
+      {error && <Alert variant="error" className="mb-6">{error}</Alert>}
+      {successMsg && <Alert variant="success" className="mb-6">{successMsg}</Alert>}
 
       {profile ? (
         <Card header={
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-slate-950 border border-slate-800 text-emerald-400 rounded-lg">
                 <User className="w-5 h-5" />
@@ -98,7 +188,26 @@ export const CandidateProfilePage: React.FC = () => {
                 <p className="text-xs font-mono text-slate-400">Profile ID: {profile.id}</p>
               </div>
             </div>
-            <Badge variant="verified">VERIFIED PROFILE</Badge>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={openEditModal}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition-colors shadow"
+                title="Edit candidate profile fields"
+              >
+                <Edit2 className="w-3.5 h-3.5" />
+                <span>Edit Profile</span>
+              </button>
+
+              <button
+                onClick={handleDeleteProfile}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors"
+                title="Delete candidate profile"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Delete</span>
+              </button>
+            </div>
           </div>
         }>
           <div className="space-y-6 text-xs">
@@ -192,6 +301,109 @@ export const CandidateProfilePage: React.FC = () => {
           Enter a Candidate Profile UUID above to view verified profile records.
         </Card>
       )}
+
+      {/* Edit Profile Modal */}
+      {isEditModalOpen && (
+        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center gap-2">
+                <Edit2 className="w-5 h-5 text-sky-400" />
+                <h3 className="text-base font-bold text-white">Edit Candidate Profile</h3>
+              </div>
+              <button
+                onClick={() => setIsEditModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Headline</label>
+                <input
+                  type="text"
+                  value={editHeadline}
+                  onChange={(e) => setEditHeadline(e.target.value)}
+                  placeholder="e.g. Senior Python & AI/ML Engineer"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">Professional Summary</label>
+                <textarea
+                  rows={3}
+                  value={editSummary}
+                  onChange={(e) => setEditSummary(e.target.value)}
+                  placeholder="Concise overview of your verified experience and technical strengths..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-sky-500 resize-none font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-amber-300 mb-1 flex items-center gap-1.5">
+                  <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                  Key Achievements, Certifications & Honors
+                </label>
+                <textarea
+                  rows={3}
+                  value={editAchievements}
+                  onChange={(e) => setEditAchievements(e.target.value)}
+                  placeholder="e.g. Published AI paper at NeurIPS 2024 | AWS Certified Solutions Architect | Hackathon Winner"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-amber-200 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 resize-none font-sans"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">
+                  Verified Skills <span className="text-slate-500 font-normal">(Comma separated)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editSkills}
+                  onChange={(e) => setEditSkills(e.target.value)}
+                  placeholder="Python, PyTorch, PostgreSQL, FastAPI..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-300 mb-1">
+                  Target Job Roles <span className="text-slate-500 font-normal">(Comma separated)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editTargetTitles}
+                  onChange={(e) => setEditTargetTitles(e.target.value)}
+                  placeholder="AI Engineer, ML Engineer, Python Developer..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                />
+              </div>
+
+              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-950 border border-slate-800 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-sky-600/20"
+                >
+                  <Check className="w-4 h-4" />
+                  {isSaving ? 'Saving...' : 'Save Profile'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
+

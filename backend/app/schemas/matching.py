@@ -163,6 +163,7 @@ class BatchAnalyzeMatchesRequest(BaseModel):
 class JobMatchAnalysisResult(BaseModel):
     """Comprehensive outcome of a candidate-job match after Stage 3 LLM evaluation."""
 
+    id: UUID | None = Field(default=None, description="JobMatch ORM record ID if saved")
     job_id: UUID
     candidate_profile_id: UUID
     title: str
@@ -201,6 +202,7 @@ class PipelineRunRequest(BaseModel):
 class PipelineRunResponse(BaseModel):
     """Execution state response from the compiled LangGraph agent workflow."""
 
+    id: UUID | None = Field(default=None, description="JobMatch ORM record ID if saved")
     candidate_profile_id: UUID
     job_id: UUID
     passed_deterministic: bool = False

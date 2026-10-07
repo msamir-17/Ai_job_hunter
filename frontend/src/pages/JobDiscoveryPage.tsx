@@ -15,6 +15,7 @@ import {
   X,
   Globe,
   Clock,
+  Award,
 } from 'lucide-react';
 import { Job } from '../types/job';
 import { CandidateProfileResponse } from '../types/candidateProfile';
@@ -30,6 +31,30 @@ import { MatchScoreBadge } from '../components/matching/MatchScoreBadge';
 import { SkillPillList } from '../components/matching/SkillPillList';
 import { MatchDetailModal } from '../components/matching/MatchDetailModal';
 import { TailoringWorkspaceModal } from '../components/tailoring/TailoringWorkspaceModal';
+
+function getJobExperienceCategory(job: Job): 'entry' | 'mid' | 'senior' {
+  const titleLower = (job.title || '').toLowerCase();
+  const descLower = (job.description || '').toLowerCase();
+  const reqsText = (job.requirements || []).join(' ').toLowerCase();
+  const fullText = `${titleLower} ${descLower} ${reqsText}`;
+
+  if (
+    /\b(senior|sr\.|iii|iv|v|lead|staff|principal|architect|director|head|manager)\b/i.test(titleLower) ||
+    /\b([5-9]|1[0-5])\+?\s*(years?|yrs?)\b/i.test(fullText)
+  ) {
+    return 'senior';
+  }
+
+  if (
+    /\b(junior|jr\.|entry|associate|intern|trainee|fresher|graduate)\b/i.test(titleLower) ||
+    /\b([0-2])\s*-\s*([1-2])\s*(years?|yrs?)\b/i.test(fullText) ||
+    /\b(0|1)\+?\s*(years?|yrs?)\b/i.test(fullText)
+  ) {
+    return 'entry';
+  }
+
+  return 'mid';
+}
 
 export const JobDiscoveryPage: React.FC = () => {
   // Candidate Profile
@@ -58,6 +83,7 @@ export const JobDiscoveryPage: React.FC = () => {
   const [locationQuery, setLocationQuery] = useState<string>('');
   const [workType, setWorkType] = useState<'all' | 'remote' | 'onsite'>('all');
   const [employmentType, setEmploymentType] = useState<'all' | 'full-time' | 'contract' | 'part-time'>('all');
+  const [experienceLevel, setExperienceLevel] = useState<'all' | 'entry' | 'mid' | 'senior'>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
 
   // Active Modals
@@ -116,6 +142,7 @@ export const JobDiscoveryPage: React.FC = () => {
       const map: Record<string, PipelineRunResponse> = {};
       stored.forEach((m) => {
         map[m.job_id] = {
+          id: m.id,
           candidate_profile_id: m.candidate_profile_id,
           job_id: m.job_id,
           passed_deterministic: m.passed_deterministic,
@@ -209,22 +236,26 @@ export const JobDiscoveryPage: React.FC = () => {
     try {
       // Find or trigger a match record ID
       const existingMatch = matchesByJobId[job.id];
-      let jobMatchId: string | null = null;
+      let jobMatchId: string | null = existingMatch?.id || null;
 
-      if (existingMatch) {
-        // Find existing match row
+      if (!jobMatchId) {
+        // Look up stored matches from backend DB
         const stored = await getCandidateJobMatches(profile.id);
         const found = stored.find((m) => m.job_id === job.id);
         if (found) jobMatchId = found.id;
       }
 
       if (!jobMatchId) {
-        // Run pipeline first to ensure JobMatch exists
+        // Run pipeline first to ensure JobMatch exists in DB
         const res = await runMatchingPipeline(profile.id, job.id);
         setMatchesByJobId((prev) => ({ ...prev, [job.id]: res }));
-        const stored = await getCandidateJobMatches(profile.id);
-        const found = stored.find((m) => m.job_id === job.id);
-        if (found) jobMatchId = found.id;
+        jobMatchId = res.id || null;
+
+        if (!jobMatchId) {
+          const stored = await getCandidateJobMatches(profile.id);
+          const found = stored.find((m) => m.job_id === job.id);
+          if (found) jobMatchId = found.id;
+        }
       }
 
       if (jobMatchId) {
@@ -252,6 +283,14 @@ export const JobDiscoveryPage: React.FC = () => {
 
     // Source filter
     if (sourceFilter !== 'all' && (job.source || '').toLowerCase() !== sourceFilter.toLowerCase()) return false;
+
+    // Experience Level filter
+    if (experienceLevel !== 'all') {
+      const cat = getJobExperienceCategory(job);
+      if (experienceLevel === 'entry' && cat !== 'entry') return false;
+      if (experienceLevel === 'mid' && cat !== 'mid') return false;
+      if (experienceLevel === 'senior' && cat !== 'senior') return false;
+    }
 
     // Location query filter
     if (locationQuery.trim()) {
@@ -284,6 +323,7 @@ export const JobDiscoveryPage: React.FC = () => {
     locationQuery.trim() !== '' ||
     workType !== 'all' ||
     employmentType !== 'all' ||
+    experienceLevel !== 'all' ||
     sourceFilter !== 'all';
 
   const clearAllFilters = () => {
@@ -291,6 +331,7 @@ export const JobDiscoveryPage: React.FC = () => {
     setLocationQuery('');
     setWorkType('all');
     setEmploymentType('all');
+    setExperienceLevel('all');
     setSourceFilter('all');
   };
 
@@ -426,7 +467,7 @@ export const JobDiscoveryPage: React.FC = () => {
         </div>
 
         {/* Inputs & Dropdowns Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
           {/* Keyword Search Input */}
           <div className="lg:col-span-2 relative">
             <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
@@ -449,6 +490,21 @@ export const JobDiscoveryPage: React.FC = () => {
               placeholder="Location (e.g. India, Remote)..."
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-sans"
             />
+          </div>
+
+          {/* Experience Level Dropdown */}
+          <div className="relative">
+            <Award className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <select
+              value={experienceLevel}
+              onChange={(e) => setExperienceLevel(e.target.value as any)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
+            >
+              <option value="all">All Experience Levels</option>
+              <option value="entry">🎓 Entry Level (0-2 Yrs)</option>
+              <option value="mid">💼 Mid Level (2-5 Yrs)</option>
+              <option value="senior">🚀 Senior / III+ (5+ Yrs)</option>
+            </select>
           </div>
 
           {/* Work Type Dropdown (Remote vs On-site) */}
@@ -481,27 +537,53 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Source Quick-Select Badges */}
-        <div className="flex flex-wrap items-center gap-2 pt-1">
-          <span className="text-[11px] font-semibold text-slate-400">Source:</span>
-          {[
-            { id: 'all', label: 'All Sources' },
-            { id: 'adzuna', label: 'Adzuna (Naukri / Indeed / LinkedIn)' },
-            { id: 'remotive', label: 'Remotive API' },
-            { id: 'manual', label: 'Manual Demo Jobs' },
-          ].map((src) => (
-            <button
-              key={src.id}
-              onClick={() => setSourceFilter(src.id)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                sourceFilter === src.id
-                  ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                  : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-              }`}
-            >
-              {src.label}
-            </button>
-          ))}
+        {/* Quick-Select Badges Rows */}
+        <div className="space-y-2 pt-1 border-t border-slate-800/60">
+          {/* Experience Level Quick-Select Badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-400">Experience:</span>
+            {[
+              { id: 'all', label: 'All Levels' },
+              { id: 'entry', label: '🎓 Entry Level (0-2 Yrs)' },
+              { id: 'mid', label: '💼 Mid Level (2-5 Yrs)' },
+              { id: 'senior', label: '🚀 Senior / Level III+ (5+ Yrs)' },
+            ].map((exp) => (
+              <button
+                key={exp.id}
+                onClick={() => setExperienceLevel(exp.id as any)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                  experienceLevel === exp.id
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                {exp.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Source Quick-Select Badges */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[11px] font-semibold text-slate-400">Source:</span>
+            {[
+              { id: 'all', label: 'All Sources' },
+              { id: 'adzuna', label: 'Adzuna (Naukri / Indeed / LinkedIn)' },
+              { id: 'remotive', label: 'Remotive API' },
+              { id: 'manual', label: 'Manual Demo Jobs' },
+            ].map((src) => (
+              <button
+                key={src.id}
+                onClick={() => setSourceFilter(src.id)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                  sourceFilter === src.id
+                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                }`}
+              >
+                {src.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 

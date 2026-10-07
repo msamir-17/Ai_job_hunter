@@ -1,4 +1,5 @@
 export interface PipelineRunResponse {
+  id?: string;
   candidate_profile_id: string;
   job_id: string;
   passed_deterministic: boolean;

@@ -186,7 +186,16 @@ async def run_pipeline_for_job_match(
             detail=final_state["error_message"],
         )
 
+    # Fetch saved JobMatch ORM ID
+    stmt_match = select(JobMatch.id).where(
+        JobMatch.candidate_profile_id == payload.candidate_profile_id,
+        JobMatch.job_id == payload.job_id,
+    )
+    match_res = await db.execute(stmt_match)
+    job_match_id = match_res.scalar_one_or_none()
+
     return PipelineRunResponse(
+        id=job_match_id,
         candidate_profile_id=payload.candidate_profile_id,
         job_id=payload.job_id,
         passed_deterministic=final_state.get("passed_deterministic", False),

@@ -5,7 +5,7 @@ from sqlalchemy import delete, select
 
 from app.database import AsyncSessionLocal, engine
 from app.main import app
-from app.models import CandidateProfile, Job, JobMatch, User
+from app.models import Application, CandidateProfile, Job, JobMatch, User
 from app.services.embedding import EmbeddingService
 from app.services.vector_search import VectorSearchService
 from app.schemas.matching import VectorSearchRequest
@@ -180,7 +180,7 @@ async def test_vector_similarity_search_real_postgres():
             # 4. Test FastAPI HTTP Endpoint POST /api/v1/matching/vector/search
             endpoint_payload = {
                 "candidate_profile_id": str(candidate_profile_id),
-                "limit": 5,
+                "limit": 100,
                 "only_passed_deterministic": False,
                 "min_similarity_threshold": 0.0,
             }
@@ -189,25 +189,37 @@ async def test_vector_similarity_search_real_postgres():
             data = resp.json()
 
             assert data["candidate_profile_id"] == str(candidate_profile_id)
-            assert data["total_matches"] == 3
+            assert data["total_matches"] >= 3
+            # Filter results to our 3 test jobs
+            test_job_str_ids = [str(jid) for jid in job_ids]
+            test_results = [r for r in data["results"] if r["job_id"] in test_job_str_ids]
+            assert len(test_results) == 3
             # Closest semantic match is Job A, followed by Job B, with Nurse role last
-            assert data["results"][0]["job_id"] == str(job_ids[0])
-            assert data["results"][1]["job_id"] == str(job_ids[1])
-            assert data["results"][2]["job_id"] == str(job_ids[2])
-            assert data["results"][0]["vector_score"] > data["results"][1]["vector_score"] > data["results"][2]["vector_score"]
+            assert test_results[0]["job_id"] == str(job_ids[0])
+            assert test_results[1]["job_id"] == str(job_ids[1])
+            assert test_results[2]["job_id"] == str(job_ids[2])
+            assert test_results[0]["vector_score"] > test_results[1]["vector_score"] > test_results[2]["vector_score"]
 
         finally:
             # 5. Cleanup test data from PostgreSQL
             async with AsyncSessionLocal() as db:
                 if candidate_profile_id:
-                    await db.execute(
-                        delete(JobMatch).where(JobMatch.candidate_profile_id == candidate_profile_id)
+                    m_res = await db.execute(
+                        select(JobMatch.id).where(JobMatch.candidate_profile_id == candidate_profile_id)
                     )
+                    m_ids = list(m_res.scalars().all())
+                    if m_ids:
+                        await db.execute(delete(Application).where(Application.job_match_id.in_(m_ids)))
+                        await db.execute(delete(JobMatch).where(JobMatch.id.in_(m_ids)))
                     await db.execute(
                         delete(CandidateProfile).where(CandidateProfile.id == candidate_profile_id)
                     )
                 for jid in job_ids:
-                    await db.execute(delete(JobMatch).where(JobMatch.job_id == jid))
+                    m_res = await db.execute(select(JobMatch.id).where(JobMatch.job_id == jid))
+                    m_ids = list(m_res.scalars().all())
+                    if m_ids:
+                        await db.execute(delete(Application).where(Application.job_match_id.in_(m_ids)))
+                        await db.execute(delete(JobMatch).where(JobMatch.id.in_(m_ids)))
                     await db.execute(delete(Job).where(Job.id == jid))
                 await db.execute(delete(User).where(User.id == test_user_id))
                 await db.commit()

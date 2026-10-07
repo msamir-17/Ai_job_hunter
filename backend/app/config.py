@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     JEV_CONFIDENCE_THRESHOLD: float = 0.70
     JEV_ENABLED: bool = True
 
+    # Vector / Embedding Settings
+    EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
+    EMBEDDING_DIMENSION: int = 384
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

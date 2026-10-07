@@ -31,3 +31,21 @@ export async function getActiveCandidateProfile(): Promise<CandidateProfileRespo
     method: 'GET',
   });
 }
+
+export async function updateCandidateProfile(
+  profileId: string,
+  payload: Partial<CandidateProfileCreate>
+): Promise<CandidateProfileResponse> {
+  return apiClient<CandidateProfileResponse>(`/api/v1/candidate-profile/${profileId}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteCandidateProfile(
+  profileId: string
+): Promise<void> {
+  return apiClient<void>(`/api/v1/candidate-profile/${profileId}`, {
+    method: 'DELETE',
+  });
+}
