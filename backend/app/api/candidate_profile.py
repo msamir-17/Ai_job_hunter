@@ -50,13 +50,15 @@ async def create_candidate_profile(
         )
 
     # 3. Create and persist candidate profile
-    profile_data = payload.model_dump()
+    profile_data = payload.model_dump(exclude={"full_name", "email", "phone", "location"})
     new_profile = CandidateProfile(id=uuid.uuid4(), **profile_data)
     db.add(new_profile)
 
     try:
         await db.commit()
         await db.refresh(new_profile)
+        new_profile.full_name = user.full_name
+        new_profile.email = user.email
     except IntegrityError:
         await db.rollback()
         raise HTTPException(
@@ -65,6 +67,7 @@ async def create_candidate_profile(
         )
 
     return new_profile
+
 
 
 @router.get(
@@ -91,6 +94,7 @@ async def list_candidate_profiles(
     summary="Get or initialize active candidate profile",
     description="Returns the active candidate profile, or creates a default demo user and profile if none exists.",
 )
+
 async def get_or_create_active_profile(
     db: AsyncSession = Depends(get_db),
 ) -> CandidateProfileResponse:
@@ -98,7 +102,15 @@ async def get_or_create_active_profile(
     res = await db.execute(stmt)
     existing = res.scalar_one_or_none()
     if existing:
+        # Load user details if attached
+        user_stmt = select(User).where(User.id == existing.user_id)
+        u_res = await db.execute(user_stmt)
+        u = u_res.scalar_one_or_none()
+        if u:
+            existing.full_name = u.full_name
+            existing.email = u.email
         return existing
+
 
     # Create default user
     demo_user = User(
@@ -171,9 +183,10 @@ async def update_candidate_profile(
             detail="Candidate profile not found.",
         )
 
-    update_data = payload.model_dump(exclude_unset=True)
+    update_data = payload.model_dump(exclude_unset=True, exclude={"full_name", "email", "phone", "location"})
     for key, value in update_data.items():
         setattr(profile, key, value)
+
 
     try:
         await db.commit()

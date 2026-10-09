@@ -7,6 +7,10 @@ from pydantic import BaseModel, ConfigDict, Field
 class CandidateProfileBase(BaseModel):
     """Base schema with common candidate profile fields."""
 
+    full_name: str | None = Field(default=None, max_length=255)
+    email: str | None = Field(default=None, max_length=255)
+    phone: str | None = Field(default=None, max_length=50)
+    location: str | None = Field(default=None, max_length=255)
     headline: str | None = Field(default=None, max_length=255)
     summary: str | None = None
     skills: list[Any] | None = None
