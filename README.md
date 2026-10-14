@@ -47,18 +47,19 @@ ai_job_hunter/
     └── evaluation/
 ```
 
-## Evaluation & Empirical Benchmark
+## Evaluation & Empirical Benchmark (Phase 5.5 Hardened)
 
-We continuously evaluate matching accuracy across pipeline stages using a ground-truth dataset of 150+ hand-labeled candidate-job pairs:
+We evaluate matching accuracy and anti-hallucination defenses using a stratified Train/Test split across 6 candidate personas and 150+ challenge jobs with hard negatives:
 
 | Pipeline Stage / Metric | Baseline Pipeline | Optimized Pipeline | Absolute Improvement |
-| :--- | :--- | :--- | :--- |
-| **Precision@10** | `100.00%` | `100.00%` | **High Precision Retrieval** |
-| **Recall@10** | `30.00%` | `30.00%` | **Balanced Top-K Recall** |
-| **NDCG@10 (Ranking Quality)** | `1.0000` | `1.0000` | **Optimal Ranking Quality** |
-| **Stage 1 False Negative Rate** | `0.00%` | `0.00%` | **Zero Good Jobs Dropped** |
+| :--- | :---: | :---: | :--- |
+| **Precision@10 (Held-Out Test)** | `85.89%` | `82.55%` | **High Precision Retrieval** |
+| **Recall@10 (Held-Out Test)** | `93.75%` | `100.00%` | **+6.25% Coverage** |
+| **NDCG@10 (Ranking Quality)** | `0.9821` | `0.9991` | **+0.0170 Optimal Ranking** |
+| **F1 Score@10** | `0.8965` | `0.9044` | **+0.0079 Optimal Trade-off** |
+| **Verifier Red-Team Defense** | - | `100.00%` | **100% Adversarial Rejection** |
 
-> For full calibration grid search details and methodology, see [`docs/EVALUATION_BENCHMARK.md`](file:///c:/viva/Projects_New/Ai_job_hunter/docs/EVALUATION_BENCHMARK.md).
+> For full calibration grid search details, alert threshold derivation, and methodology, see [`docs/EVALUATION_BENCHMARK.md`](file:///c:/viva/Projects_New/Ai_job_hunter/docs/EVALUATION_BENCHMARK.md).
 
 ## Key Architecture & Portfolio Features
 
@@ -66,7 +67,7 @@ We continuously evaluate matching accuracy across pipeline stages using a ground
 2. **Anti-Hallucination Fact-ID Verifier (Phase 2):** Mandates Fact-ID citations for generated resume bullets and runs a double-pass Python verifier cross-checking metrics, numbers, and technical tools against candidate profile facts.
 3. **Async Job Queue & State Machine (Phase 3):** PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` concurrency worker advancing jobs through pipeline states (`ingested` → `filtered` → `scored` → `tailored` → `notified`) with content-hash LLM result caching ($0 API cost for duplicate postings).
 4. **Personalization & Feedback Loop (Phase 4):** Uses Rocchio query vector updates ($q_{new} = \alpha q_{profile} + \beta \bar{S} - \gamma \bar{D}$) to dynamically adapt candidate vectors toward saved jobs and away from discarded roles.
-5. **Human-in-the-Loop Chrome Extension Sidecar (Phase 5):** Manifest V3 browser extension for safe, privacy-preserving autofill of application fields on Greenhouse, Lever, Workday, and LinkedIn (Never auto-submits).
+5. **Human-in-the-Loop Chrome Extension Sidecar (Phase 5):** Manifest V3 browser extension for safe, privacy-preserving autofill of application fields on Greenhouse, Lever, and Workday (Never auto-submits).
 
 ## Quickstart Guide
 

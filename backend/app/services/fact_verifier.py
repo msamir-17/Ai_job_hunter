@@ -1,18 +1,29 @@
 """
 Fact Citation Verifier Service for Anti-Hallucination Enforcement.
-Implements double-pass verification check ensuring every generated resume bullet point:
+Implements multi-pass verification ensuring every generated resume bullet point:
 1. Formally cites valid Candidate Profile Fact IDs.
-2. Contains only numbers, metrics, and tools supported by those cited facts.
-3. Does not contain fabricated technologies or unverified experience claims.
+2. Contains only tools, languages, and frameworks present in verified profile facts.
+3. Contains only metrics, percentages, and scale numbers supported by verified candidate facts.
+4. Rejects adversarial prompt injection and fabricated experience claims.
 """
 import re
 from typing import Dict, List, Set, Tuple, Any
 from app.models import CandidateProfile
-from app.schemas.tailoring import TailoredResumeBullet, AntiHallucinationAuditResult
+from app.schemas.tailoring import TailoredResumeBullet
+
+
+COMMON_TECH_CATALOG = {
+    "python", "pytorch", "tensorflow", "fastapi", "django", "flask", "docker", "kubernetes",
+    "postgresql", "postgres", "mysql", "mongodb", "redis", "kafka", "aws", "gcp", "azure",
+    "langchain", "llamaindex", "huggingface", "scikit-learn", "sklearn", "pandas", "numpy",
+    "react", "next.js", "typescript", "javascript", "tailwind", "graphql", "celery", "airflow",
+    "spark", "hadoop", "snowflake", "databricks", "triton", "ray", "cuda", "c++", "golang", "go",
+    "rust", "java", "spring", "terraform", "ansible", "elasticsearch", "sqlite"
+}
 
 
 class FactVerifierService:
-    """Service to assign Fact IDs to Candidate Profile entries and perform double-pass validation."""
+    """Service to assign Fact IDs to Candidate Profile entries and perform multi-pass validation."""
 
     @staticmethod
     def generate_candidate_fact_map(candidate: CandidateProfile) -> Tuple[Dict[str, str], Dict[str, Any]]:
@@ -62,15 +73,14 @@ class FactVerifierService:
         fact_id_raw: Dict[str, Any]
     ) -> Tuple[bool, List[str]]:
         """
-        Verify a single resume bullet point against its cited Fact IDs.
+        Verify a single resume bullet point against verified candidate profile facts.
         Returns (is_valid, list_of_violation_reasons).
         """
         violations: List[str] = []
 
-        # Check 1: Fact ID citation requirement
-        cited_ids = getattr(bullet, "cited_fact_ids", [])
+        # Check 1: Fact ID citation validity
+        cited_ids = getattr(bullet, "cited_fact_ids", []) or []
         if not cited_ids:
-            # Fallback to rationale checking if cited_fact_ids is empty
             if not bullet.grounding_rationale:
                 violations.append("Bullet missing required Fact ID citations and grounding rationale.")
 
@@ -78,28 +88,48 @@ class FactVerifierService:
             if f_id not in fact_id_raw:
                 violations.append(f"Invalid or fabricated Fact ID cited: '{f_id}'.")
 
-        # Check 2: Technical tool / skill verification
-        text_lower = bullet.bullet_point.lower()
-        candidate_verified_skills = set()
+        # Collect verified candidate tokens and skills
+        candidate_text_full = json_profile_to_string(candidate).lower()
+        candidate_verified_skills: Set[str] = set()
         if candidate.skills:
             for s in candidate.skills:
                 skill_str = s if isinstance(s, str) else s.get("name", "")
                 if skill_str:
-                    candidate_verified_skills.add(skill_str.lower())
+                    candidate_verified_skills.add(skill_str.lower().strip())
 
-        # Check 3: Numeric verification (Ensure numbers in bullet exist in profile text)
-        numbers_in_bullet = re.findall(r"\b\d+(?:\.\d+)?%?", bullet.bullet_point)
-        candidate_text_full = json_profile_to_string(candidate).lower()
+        bullet_text = bullet.bullet_point or ""
+        text_lower = bullet_text.lower()
 
-        for num in numbers_in_bullet:
-            if not num:
+        # Check 2: Technical tool / skill verification
+        # Check if relevant_skill is verified
+        if bullet.relevant_skill:
+            rel_skill_lower = bullet.relevant_skill.lower().strip()
+            if rel_skill_lower not in candidate_verified_skills and rel_skill_lower not in candidate_text_full:
+                violations.append(f"Claimed relevant skill '{bullet.relevant_skill}' is not verified in candidate profile.")
+
+        # Check for unverified technologies from catalog mentioned in bullet
+        for tech in COMMON_TECH_CATALOG:
+            pattern = r"\b" + re.escape(tech) + r"\b"
+            if re.search(pattern, text_lower):
+                if tech not in candidate_verified_skills and tech not in candidate_text_full:
+                    violations.append(f"Unverified technology or framework '{tech}' claimed in resume bullet.")
+
+        # Check 3: Numeric & Metric verification (Ensure specific metrics exist in profile text)
+        # Finds metrics like 45%, 10M, 500k, 28%, $450k, 500GB
+        metric_tokens = re.findall(r"\b(?:\$?\d+(?:\.\d+)?(?:%|[kmgbKMGB]+)?)\b", bullet_text)
+        for token in metric_tokens:
+            token_clean = token.strip()
+            # Ignore standard single digit numbers or trivial counts
+            if token_clean in {"1", "2", "3", "4", "5", "10", "100"}:
                 continue
-            # Ignore standard single digit numbers or common template numbers
-            if num in ["1", "2", "3", "4", "5", "10", "100"]:
-                continue
-            if num not in candidate_text_full:
-                violations.append(f"Metric or number '{num}' in bullet is not present in candidate profile.")
+            if token_clean.lower() not in candidate_text_full:
+                violations.append(f"Metric or scale number '{token_clean}' in bullet is not present in candidate profile.")
 
+        # Check 4: Prompt Injection markers
+        injection_triggers = ["ignore previous instructions", "system instruction", "override", "developer mode"]
+        for trigger in injection_triggers:
+            if trigger in text_lower:
+                violations.append(f"Adversarial prompt injection pattern detected: '{trigger}'.")
 
         is_valid = len(violations) == 0
         return is_valid, violations
@@ -109,10 +139,15 @@ def json_profile_to_string(candidate: CandidateProfile) -> str:
     """Helper to convert candidate profile to plain text string for search."""
     full_name = getattr(candidate, "full_name", "") or ""
     headline = getattr(candidate, "headline", "") or ""
-    parts = [full_name, headline]
+    summary = getattr(candidate, "summary", "") or ""
+    parts = [full_name, headline, summary]
 
     if candidate.skills:
         parts.extend([s if isinstance(s, str) else str(s.get("name", "")) for s in candidate.skills])
     if candidate.experience:
         parts.append(str(candidate.experience))
+    if candidate.education:
+        parts.append(str(candidate.education))
+    if candidate.target_titles:
+        parts.append(str(candidate.target_titles))
     return " ".join(parts)

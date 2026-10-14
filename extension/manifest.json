@@ -13,8 +13,7 @@
     "http://127.0.0.1:8000/*",
     "https://*.greenhouse.io/*",
     "https://*.lever.co/*",
-    "https://*.workday.com/*",
-    "https://*.linkedin.com/*"
+    "https://*.workday.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -29,8 +28,7 @@
       "matches": [
         "https://*.greenhouse.io/*",
         "https://*.lever.co/*",
-        "https://*.workday.com/*",
-        "https://*.linkedin.com/*"
+        "https://*.workday.com/*"
       ],
       "js": ["content_script.js"]
     }
