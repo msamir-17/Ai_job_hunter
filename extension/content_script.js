@@ -1,8 +1,9 @@
 /**
- * AI Job Hunter Content Script (Agentic Auto-Detection & HITL Auto-Fill).
- * Runs inside browser session. Automatically observes DOM for LinkedIn Easy Apply,
- * Greenhouse, Lever, and Workday forms, auto-fills candidate facts, and highlights fields in yellow.
- * NEVER clicks submit (Strict Human-in-the-Loop safety).
+ * AI Job Hunter Content Script (Agentic Multi-Step Portal & Workday Auto-Fill).
+ * Handles multi-step application wizards (Workday, Greenhouse, Lever, Taleo).
+ * Automatically detects step changes (e.g. Step 1 Create Account -> Step 3 My Information -> Step 4 Experience),
+ * fills verified candidate facts per step, and highlights fields in yellow.
+ * NEVER stores passwords or clicks submit (Strict HITL safety).
  */
 
 // Candidate Facts Store (Default + Dynamic Sync from Backend)
@@ -44,7 +45,6 @@ async function syncCandidateProfileFromBackend() {
 }
 syncCandidateProfileFromBackend();
 
-
 // Display non-intrusive Toast Notification on page
 function showToastNotification(message) {
   let toast = document.getElementById("ai-job-hunter-toast");
@@ -80,6 +80,7 @@ function showToastNotification(message) {
 function getFieldDescriptor(input) {
   let descriptor = "";
   descriptor += " " + (input.getAttribute('aria-label') || '');
+  descriptor += " " + (input.getAttribute('data-automation-id') || ''); // Workday automation ID
   descriptor += " " + (input.placeholder || '');
   descriptor += " " + (input.name || '');
   descriptor += " " + (input.id || '');
@@ -91,7 +92,7 @@ function getFieldDescriptor(input) {
     } catch (e) {}
   }
 
-  const parentContainer = input.closest('div, label, section, .fb-dash-form-element, .jobs-easy-apply-form-section__grouping');
+  const parentContainer = input.closest('div, label, section, .fb-dash-form-element, .jobs-easy-apply-form-section__grouping, [data-automation-id]');
   if (parentContainer) {
     descriptor += " " + parentContainer.innerText;
   }
@@ -121,20 +122,25 @@ function autoFillFormFields(showToast = true) {
   let fieldsFilled = 0;
 
   inputs.forEach(input => {
-    if (['submit', 'button', 'checkbox', 'radio'].includes(input.type)) return;
+    // SECURITY: NEVER touch password, submit, or checkbox/radio inputs
+    if (['password', 'submit', 'button', 'checkbox', 'radio'].includes(input.type)) return;
 
     const descriptor = getFieldDescriptor(input);
+
+    // Skip password requirement fields
+    if (descriptor.includes('password')) return;
+
     let valueToFill = null;
 
     if (descriptor.includes('mobile') || descriptor.includes('phone') || descriptor.includes('contact')) {
       valueToFill = CANDIDATE_PROFILE_FACTS.phone;
-    } else if (descriptor.includes('city') || descriptor.includes('location')) {
+    } else if (descriptor.includes('city') || descriptor.includes('location') || descriptor.includes('address')) {
       valueToFill = CANDIDATE_PROFILE_FACTS.city;
-    } else if (descriptor.includes('first name') || descriptor.includes('firstname')) {
+    } else if (descriptor.includes('first name') || descriptor.includes('firstname') || descriptor.includes('given name')) {
       valueToFill = CANDIDATE_PROFILE_FACTS.first_name;
-    } else if (descriptor.includes('last name') || descriptor.includes('lastname')) {
+    } else if (descriptor.includes('last name') || descriptor.includes('lastname') || descriptor.includes('family name')) {
       valueToFill = CANDIDATE_PROFILE_FACTS.last_name;
-    } else if (descriptor.includes('email')) {
+    } else if (descriptor.includes('email') && !descriptor.includes('verify')) {
       valueToFill = CANDIDATE_PROFILE_FACTS.email;
     } else if (descriptor.includes('linkedin')) {
       valueToFill = CANDIDATE_PROFILE_FACTS.linkedin;
@@ -153,25 +159,21 @@ function autoFillFormFields(showToast = true) {
 
   if (fieldsFilled > 0 && showToast && fieldsFilled !== lastFilledCount) {
     lastFilledCount = fieldsFilled;
-    showToastNotification(`Auto-filled ${fieldsFilled} fields. Please review before submitting.`);
+    showToastNotification(`Step Form Auto-filled ${fieldsFilled} fields. Please review before proceeding.`);
   }
 
   return fieldsFilled;
 }
 
-// Automatic DOM Observer for Agentic Modal & Application Detection
+// Automatic DOM Observer for Multi-Step Wizards (Workday, Greenhouse, Taleo)
 const observer = new MutationObserver((mutations) => {
   clearTimeout(autofillDebounceTimer);
   autofillDebounceTimer = setTimeout(() => {
-    // Check if job application modal or form is present on page
-    const hasApplicationForm = document.querySelector('.jobs-easy-apply-modal, .artdeco-modal, form, [data-automation-id="jobApplicationForm"]');
-    if (hasApplicationForm) {
-      autoFillFormFields(true);
-    }
+    autoFillFormFields(true);
   }, 400);
 });
 
-// Start observing document body for dynamic modal popups
+// Start observing document body for step wizard page transitions
 observer.observe(document.body, { childList: true, subtree: true });
 
 // Initial execution on page load
