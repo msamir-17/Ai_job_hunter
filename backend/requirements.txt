@@ -16,3 +16,6 @@ google-genai>=0.1.0
 sentence-transformers>=2.5.0
 langgraph>=0.0.30
 langchain-core>=0.1.30
+pyjwt>=2.8.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.1.0

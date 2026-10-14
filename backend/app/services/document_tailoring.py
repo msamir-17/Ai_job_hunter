@@ -15,6 +15,7 @@ from app.schemas.tailoring import (
     TailoredCoverLetterDraft,
     TailoredResumeDraft,
 )
+from app.services.fact_verifier import COMMON_TECH_CATALOG
 from app.services.llm_matching import (
     format_candidate_for_prompt,
     format_job_for_prompt,
@@ -143,10 +144,14 @@ class DocumentTailoringService:
             job_skills = extract_job_required_terms(job)
             candidate_missing.update(job_skills - verified_terms)
 
+        # Cross-reference with technical catalog to flag any unverified technologies/tools claimed in text
+        unverified_catalog_tools = {tech for tech in COMMON_TECH_CATALOG if tech not in verified_terms}
+        candidate_missing.update(unverified_catalog_tools)
+
         hallucinated_terms: list[str] = []
         verified_terms_used: list[str] = []
 
-        # 1. Check for hallucinated missing skills
+        # 1. Check for hallucinated missing or unverified skills
         for term in sorted(candidate_missing):
             pattern = r"\b" + re.escape(term) + r"\b"
             if re.search(pattern, text_lower):
@@ -162,6 +167,7 @@ class DocumentTailoringService:
                     verified_terms_used.append(term)
 
         is_grounded = len(hallucinated_terms) == 0
+        audit_status = "PASS" if is_grounded else "FLAGGED"
 
         if is_grounded:
             explanation = (
@@ -177,6 +183,7 @@ class DocumentTailoringService:
 
         return AntiHallucinationAuditResult(
             is_grounded=is_grounded,
+            audit_status=audit_status,
             hallucinated_terms=hallucinated_terms,
             verified_terms_used=verified_terms_used,
             audit_explanation=explanation,

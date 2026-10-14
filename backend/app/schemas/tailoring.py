@@ -53,6 +53,7 @@ class AntiHallucinationAuditResult(BaseModel):
     """Deterministic audit report checking generated text against candidate facts."""
 
     is_grounded: bool = Field(description="True if zero unverified technical skills were hallucinated")
+    audit_status: str = Field(default="PASS", description="Audit status: PASS or FLAGGED")
     hallucinated_terms: list[str] = Field(
         default_factory=list,
         description="Technical skills or tools asserted in the text that are NOT in the candidate profile",

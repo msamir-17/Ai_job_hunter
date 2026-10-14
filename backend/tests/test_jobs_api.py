@@ -4,7 +4,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 from app.database import AsyncSessionLocal, engine
 from app.main import app
-from app.models import Application, Job, JobMatch
+from app.models import Application, GeneratedDocument, Job, JobMatch
 
 
 @pytest.fixture
@@ -70,6 +70,10 @@ async def test_jobs_api_ingest_manual_and_list_real_db():
                     m_res = await db.execute(select(JobMatch.id).where(JobMatch.job_id.in_(manual_jids)))
                     m_ids = list(m_res.scalars().all())
                     if m_ids:
+                        app_res = await db.execute(select(Application.id).where(Application.job_match_id.in_(m_ids)))
+                        app_ids = list(app_res.scalars().all())
+                        if app_ids:
+                            await db.execute(delete(GeneratedDocument).where(GeneratedDocument.application_id.in_(app_ids)))
                         await db.execute(delete(Application).where(Application.job_match_id.in_(m_ids)))
                         await db.execute(delete(JobMatch).where(JobMatch.id.in_(m_ids)))
                     await db.execute(delete(Job).where(Job.id.in_(manual_jids)))
@@ -100,6 +104,10 @@ async def test_jobs_api_ingest_remotive_cache_real_db():
                     m_res = await db.execute(select(JobMatch.id).where(JobMatch.job_id.in_(remotive_jids)))
                     m_ids = list(m_res.scalars().all())
                     if m_ids:
+                        app_res = await db.execute(select(Application.id).where(Application.job_match_id.in_(m_ids)))
+                        app_ids = list(app_res.scalars().all())
+                        if app_ids:
+                            await db.execute(delete(GeneratedDocument).where(GeneratedDocument.application_id.in_(app_ids)))
                         await db.execute(delete(Application).where(Application.job_match_id.in_(m_ids)))
                         await db.execute(delete(JobMatch).where(JobMatch.id.in_(m_ids)))
                     await db.execute(delete(Job).where(Job.id.in_(remotive_jids)))

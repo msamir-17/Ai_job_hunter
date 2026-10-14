@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     API_HOST: str = "0.0.0.0"
     API_PORT: int = 8000
     SECRET_KEY: str = "development-secret-key-change-in-production"
+    JWT_SECRET: str = "development-jwt-secret-key-change-in-production"
+    JWT_ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
     
     # Database Settings
     POSTGRES_USER: str = "postgres"

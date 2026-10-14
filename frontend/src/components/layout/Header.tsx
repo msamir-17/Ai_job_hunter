@@ -1,9 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bot, FileText, User, Home, Briefcase, Kanban } from 'lucide-react';
+import { Bot, FileText, User, Home, Briefcase, Kanban, Key, LogOut } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { AuthModal } from '../auth/AuthModal';
 
 export const Header: React.FC = () => {
   const location = useLocation();
+  const { user, logout } = useAuth();
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const navItems = [
     { path: '/', label: 'Overview', icon: <Home className="w-4 h-4" /> },
@@ -14,42 +18,83 @@ export const Header: React.FC = () => {
   ];
 
   return (
-    <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 py-4 flex flex-col md:flex-row items-center justify-between gap-4">
-        <Link to="/" className="flex items-center gap-3 group">
-          <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20 group-hover:border-sky-500/40 transition-colors">
-            <Bot className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white group-hover:text-sky-300 transition-colors">
-              AI Job Hunter Co-Pilot
-            </h1>
-            <p className="text-xs text-slate-400 hidden sm:block">
-              Human-in-the-Loop Verified Candidate Workflow
-            </p>
-          </div>
-        </Link>
+    <>
+      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
+        <div className="max-w-6xl mx-auto px-4 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
+          <Link to="/" className="flex items-center gap-3 group">
+            <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20 group-hover:border-sky-500/40 transition-colors">
+              <Bot className="w-6 h-6" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-white group-hover:text-sky-300 transition-colors">
+                AI Job Hunter Co-Pilot
+              </h1>
+              <p className="text-xs text-slate-400 hidden sm:block">
+                Human-in-the-Loop Verified Candidate Workflow
+              </p>
+            </div>
+          </Link>
 
-        <nav className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
-          {navItems.map((item) => {
-            const isActive = location.pathname === item.path;
-            return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                  isActive
-                    ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                }`}
+          <div className="flex flex-wrap items-center gap-3">
+            <nav className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
+              {navItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                      isActive
+                        ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
+                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                    }`}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+
+            {/* Tenant / Auth status indicator */}
+            {user ? (
+              <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1 pl-2.5 rounded-xl shadow-sm">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <div className="text-left">
+                    <div className="text-[11px] font-bold text-white leading-tight truncate max-w-[110px]" title={user.email}>
+                      {user.full_name || user.email}
+                    </div>
+                    <div className="text-[9px] font-mono text-emerald-400">
+                      Tenant Scoped
+                    </div>
+                  </div>
+                </div>
+                <button
+                  onClick={logout}
+                  title="Sign Out (Clear Session)"
+                  className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-colors text-xs"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all"
               >
-                {item.icon}
-                <span>{item.label}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      </div>
-    </header>
+                <Key className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
+    </>
   );
 };

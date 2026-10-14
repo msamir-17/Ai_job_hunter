@@ -32,6 +32,21 @@ export async function getActiveCandidateProfile(): Promise<CandidateProfileRespo
   });
 }
 
+export async function getMyProfile(): Promise<CandidateProfileResponse> {
+  return apiClient<CandidateProfileResponse>('/api/v1/candidate-profile/me', {
+    method: 'GET',
+  });
+}
+
+export async function updateMyProfile(
+  payload: Partial<CandidateProfileCreate>
+): Promise<CandidateProfileResponse> {
+  return apiClient<CandidateProfileResponse>('/api/v1/candidate-profile/me', {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateCandidateProfile(
   profileId: string,
   payload: Partial<CandidateProfileCreate>

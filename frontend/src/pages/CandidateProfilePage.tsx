@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy } from 'lucide-react';
+import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy, Lock, ShieldAlert } from 'lucide-react';
 import { CandidateProfileResponse } from '../types/candidateProfile';
-import { getCandidateProfile, getActiveCandidateProfile, updateCandidateProfile, deleteCandidateProfile } from '../api/candidateProfile';
+import { getCandidateProfile, getActiveCandidateProfile, getMyProfile, updateMyProfile, updateCandidateProfile, deleteCandidateProfile } from '../api/candidateProfile';
+import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Alert } from '../components/ui/Alert';
 
 export const CandidateProfilePage: React.FC = () => {
+  const { user, isAuthenticated } = useAuth();
   const [profileIdInput, setProfileIdInput] = useState<string>('');
   const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [showInspector, setShowInspector] = useState<boolean>(false);
 
   // Edit Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
@@ -22,20 +25,27 @@ export const CandidateProfilePage: React.FC = () => {
   const [editTargetTitles, setEditTargetTitles] = useState<string>('');
 
   useEffect(() => {
-    const fetchActive = async () => {
+    const loadProfile = async () => {
       setLoading(true);
+      setError(null);
       try {
-        const data = await getActiveCandidateProfile();
-        setProfile(data);
-        setProfileIdInput(data.id);
+        if (isAuthenticated) {
+          const data = await getMyProfile();
+          setProfile(data);
+          setProfileIdInput(data.id);
+        } else {
+          const data = await getActiveCandidateProfile();
+          setProfile(data);
+          setProfileIdInput(data.id);
+        }
       } catch (err: any) {
-        // Silent catch if backend active profile fails
+        setError(err.message || 'Failed to load profile.');
       } finally {
         setLoading(false);
       }
     };
-    fetchActive();
-  }, []);
+    loadProfile();
+  }, [isAuthenticated, user?.id]);
 
   const handleFetch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -95,16 +105,23 @@ export const CandidateProfilePage: React.FC = () => {
         finalSummary = `${finalSummary}\n\nKey Achievements & Certifications:\n${editAchievements.trim()}`;
       }
 
-      const updated = await updateCandidateProfile(profile.id, {
+      let updated: CandidateProfileResponse;
+      const updatePayload = {
         headline: editHeadline,
         summary: finalSummary,
         skills: skillsArray,
         target_titles: targetTitlesArray,
-      });
+      };
+
+      if (isAuthenticated) {
+        updated = await updateMyProfile(updatePayload);
+      } else {
+        updated = await updateCandidateProfile(profile.id, updatePayload);
+      }
 
       setProfile(updated);
       setIsEditModalOpen(false);
-      setSuccessMsg('Profile updated successfully with achievements in PostgreSQL database!');
+      setSuccessMsg('Profile updated successfully in PostgreSQL database (Scoped to your account)!');
     } catch (err: any) {
       setError(err.message || 'Failed to update profile.');
     } finally {
@@ -134,8 +151,9 @@ export const CandidateProfilePage: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="border-b border-slate-800 pb-6 mb-8">
-        <div className="flex items-center gap-3 mb-2">
+      {/* Page Header */}
+      <div className="border-b border-slate-800 pb-6 mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
           <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20">
             <ShieldCheck className="w-6 h-6" />
           </div>
@@ -144,34 +162,74 @@ export const CandidateProfilePage: React.FC = () => {
               Verified Candidate Profile
             </h1>
             <p className="text-xs text-slate-400">
-              Verified candidate facts stored in PostgreSQL (Source of Truth)
+              Verified candidate facts stored in PostgreSQL (Port 5435 Source of Truth)
             </p>
           </div>
         </div>
+
+        {/* Multi-Tenant Status Badge */}
+        {isAuthenticated && user ? (
+          <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-500/30 px-3 py-1.5 rounded-xl">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="text-left">
+              <span className="text-xs font-bold text-emerald-300 block">{user.full_name}</span>
+              <span className="text-[10px] font-mono text-emerald-400/80">Tenant: {user.email}</span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 bg-amber-950/40 border border-amber-500/30 px-3 py-1.5 rounded-xl text-amber-300 text-xs">
+            <Lock className="w-3.5 h-3.5 text-amber-400" />
+            <span>Guest Mode • Sign in to activate multi-tenancy</span>
+          </div>
+        )}
       </div>
 
-      <Card className="mb-8">
-        <form onSubmit={handleFetch} className="flex flex-col sm:flex-row items-center gap-3">
-          <div className="relative flex-1 w-full">
-            <Key className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={profileIdInput}
-              onChange={(e) => setProfileIdInput(e.target.value)}
-              placeholder="Enter Candidate Profile UUID to inspect..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white font-mono placeholder-slate-600 focus:outline-none focus:border-sky-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full sm:w-auto px-5 py-2 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
-          >
-            <Search className="w-3.5 h-3.5" />
-            Fetch Verified Profile
-          </button>
-        </form>
-      </Card>
+      {/* UUID Inspector & Cross-Tenant Test Toolbar */}
+      <div className="mb-6 flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-xl border border-slate-800">
+        <div className="flex items-center gap-2 text-xs text-slate-400">
+          <ShieldAlert className="w-4 h-4 text-sky-400" />
+          <span>
+            {isAuthenticated
+              ? `Currently viewing tenant profile for ${user?.email}`
+              : 'Viewing default candidate profile'}
+          </span>
+        </div>
+
+        <button
+          onClick={() => setShowInspector(!showInspector)}
+          className="text-xs font-medium text-sky-400 hover:text-sky-300 underline underline-offset-4"
+        >
+          {showInspector ? 'Hide UUID Cross-Tenant Inspector' : 'Test Cross-Tenant Isolation (Inspect UUID)'}
+        </button>
+      </div>
+
+      {showInspector && (
+        <Card className="mb-6 border-sky-800/40 bg-sky-950/10">
+          <form onSubmit={handleFetch} className="flex flex-col sm:flex-row items-center gap-3">
+            <div className="relative flex-1 w-full">
+              <Key className="w-4 h-4 text-slate-500 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={profileIdInput}
+                onChange={(e) => setProfileIdInput(e.target.value)}
+                placeholder="Enter Candidate Profile UUID to test 403 Forbidden cross-tenant isolation..."
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-lg text-white font-mono placeholder-slate-600 focus:outline-none focus:border-sky-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full sm:w-auto px-5 py-2 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              <Search className="w-3.5 h-3.5" />
+              Inspect UUID
+            </button>
+          </form>
+          <p className="text-[11px] text-slate-500 mt-2">
+            💡 <strong>Security Verification:</strong> If you are logged in as Alice and query Bob's Profile UUID, the PostgreSQL API will return <code>403 Access Forbidden</code>.
+          </p>
+        </Card>
+      )}
 
       {error && <Alert variant="error" className="mb-6">{error}</Alert>}
       {successMsg && <Alert variant="success" className="mb-6">{successMsg}</Alert>}

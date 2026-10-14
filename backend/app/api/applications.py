@@ -7,6 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.deps import get_current_user_optional
 from app.database import get_db
 from app.models import Application, GeneratedDocument, JobMatch, User
 from app.schemas.application import (
@@ -55,7 +56,14 @@ def map_application_to_response(app_record: Application) -> ApplicationResponse:
 async def create_application(
     payload: ApplicationCreate,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> ApplicationResponse:
+    if current_user and payload.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Cannot create applications for another candidate.",
+        )
+
     # 1. Verify User exists
     res_user = await db.execute(select(User).where(User.id == payload.user_id))
     if not res_user.scalar_one_or_none():
@@ -118,14 +126,23 @@ async def list_applications(
     limit: int = Query(default=50, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> list[ApplicationResponse]:
     stmt = select(Application).options(
         selectinload(Application.job_match).selectinload(JobMatch.job),
         selectinload(Application.generated_documents),
     )
 
-    if user_id:
+    if current_user:
+        if user_id and user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Forbidden: Cannot access another user's applications.",
+            )
+        stmt = stmt.where(Application.user_id == current_user.id)
+    elif user_id:
         stmt = stmt.where(Application.user_id == user_id)
+
     if app_status:
         stmt = stmt.where(Application.status == app_status.strip().lower())
 
@@ -144,6 +161,7 @@ async def list_applications(
 async def get_application(
     application_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> ApplicationResponse:
     stmt = (
         select(Application)
@@ -158,6 +176,11 @@ async def get_application(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Application with ID '{application_id}' not found.",
+        )
+    if current_user and app_rec.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Cannot access another user's application.",
         )
     return map_application_to_response(app_rec)
 
@@ -173,6 +196,7 @@ async def update_application(
     application_id: UUID,
     payload: ApplicationUpdate,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> ApplicationResponse:
     stmt = (
         select(Application)
@@ -187,6 +211,11 @@ async def update_application(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Application with ID '{application_id}' not found.",
+        )
+    if current_user and app_rec.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Cannot mutate another user's application.",
         )
 
     if payload.status is not None:
@@ -215,6 +244,7 @@ async def update_application(
 async def delete_application(
     application_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User | None = Depends(get_current_user_optional),
 ) -> Response:
     stmt = select(Application).where(Application.id == application_id)
     app_rec = (await db.execute(stmt)).scalar_one_or_none()
@@ -222,6 +252,11 @@ async def delete_application(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Application with ID '{application_id}' not found.",
+        )
+    if current_user and app_rec.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Forbidden: Cannot delete another user's application.",
         )
 
     await db.delete(app_rec)

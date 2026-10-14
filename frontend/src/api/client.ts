@@ -10,6 +10,12 @@ export async function apiClient<T>(
   
   const headers = new Headers(options.headers || {});
   
+  // Attach JWT Bearer token if present in localStorage
+  const token = localStorage.getItem('auth_token');
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`);
+  }
+
   // Set Content-Type to application/json if body is present and not FormData
   if (options.body && !(options.body instanceof FormData) && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json');
