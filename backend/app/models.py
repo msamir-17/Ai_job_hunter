@@ -454,3 +454,71 @@ class GeneratedDocument(Base):
         back_populates="generated_documents",
     )
 
+
+class FeedbackEvent(Base):
+    """
+    Append-only feedback log table for candidate interactions.
+    Records saved and discarded jobs along with structured reason codes.
+    """
+
+    __tablename__ = "feedback_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    candidate_profile_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    job_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    action: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="discard",
+    )
+
+    reason_code: Mapped[str] = mapped_column(
+        String(100),
+        nullable=False,
+    )
+
+    notes: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    disliked_skill: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    user: Mapped["User"] = relationship()
+    candidate_profile: Mapped["CandidateProfile"] = relationship()
+    job: Mapped["Job"] = relationship()
+
+

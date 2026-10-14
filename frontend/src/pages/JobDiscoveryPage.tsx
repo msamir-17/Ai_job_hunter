@@ -16,10 +16,13 @@ import {
   Globe,
   Clock,
   Award,
+  ThumbsDown,
+  RotateCcw,
 } from 'lucide-react';
 import { Job } from '../types/job';
 import { CandidateProfileResponse } from '../types/candidateProfile';
 import { PipelineRunResponse } from '../types/matching';
+import { FeedbackResponse } from '../types/feedback';
 import { listJobs, ingestJobs } from '../api/jobs';
 import { listCandidateProfiles, getActiveCandidateProfile } from '../api/candidateProfile';
 import {
@@ -27,10 +30,12 @@ import {
   getCandidateJobMatches,
 } from '../api/matching';
 import { createApplication, listApplications } from '../api/applications';
+import { discardJobApi, listFeedbackApi, deleteFeedbackApi } from '../api/feedback';
 import { MatchScoreBadge } from '../components/matching/MatchScoreBadge';
 import { SkillPillList } from '../components/matching/SkillPillList';
 import { MatchDetailModal } from '../components/matching/MatchDetailModal';
 import { TailoringWorkspaceModal } from '../components/tailoring/TailoringWorkspaceModal';
+import { DiscardReasonModal } from '../components/matching/DiscardReasonModal';
 
 function getJobExperienceCategory(job: Job): 'entry' | 'mid' | 'senior' {
   const titleLower = (job.title || '').toLowerCase();
@@ -78,6 +83,14 @@ export const JobDiscoveryPage: React.FC = () => {
   const [trackedJobIds, setTrackedJobIds] = useState<Record<string, string>>({}); // jobId -> applicationId
   const [isTrackingJobId, setIsTrackingJobId] = useState<Record<string, boolean>>({});
 
+  // Discard / Feedback state
+  const [discardsByJobId, setDiscardsByJobId] = useState<Record<string, FeedbackResponse>>({});
+  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState<boolean>(false);
+  const [selectedJobForDiscard, setSelectedJobForDiscard] = useState<Job | null>(null);
+  const [isSubmittingDiscard, setIsSubmittingDiscard] = useState<boolean>(false);
+  const [hideDiscarded, setHideDiscarded] = useState<boolean>(false);
+  const [feedbackAlert, setFeedbackAlert] = useState<string | null>(null);
+
   // Filters & Search
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [locationQuery, setLocationQuery] = useState<string>('');
@@ -111,10 +124,13 @@ export const JobDiscoveryPage: React.FC = () => {
       // Load jobs
       await loadJobs();
 
-      // If profile exists, load existing matches & tracked applications
+      // If profile exists, load existing matches, tracked applications, and feedback
       if (p) {
         loadStoredMatches(p.id);
         loadUserApplications(p.user_id);
+        loadUserFeedback(p.id);
+      } else {
+        loadUserFeedback();
       }
     } catch (err: any) {
       console.error('Failed to load profile/jobs:', err);
@@ -174,6 +190,70 @@ export const JobDiscoveryPage: React.FC = () => {
       setTrackedJobIds(map);
     } catch (err) {
       console.error('Could not load applications:', err);
+    }
+  };
+
+  const loadUserFeedback = async (candidateProfileId?: string) => {
+    try {
+      const list = await listFeedbackApi(candidateProfileId);
+      const map: Record<string, FeedbackResponse> = {};
+      list.forEach((f) => {
+        if (f.action === 'discard') {
+          map[f.job_id] = f;
+        }
+      });
+      setDiscardsByJobId(map);
+    } catch (err) {
+      console.error('Could not load feedback history:', err);
+    }
+  };
+
+  const handleOpenDiscard = (job: Job) => {
+    setSelectedJobForDiscard(job);
+    setIsDiscardModalOpen(true);
+  };
+
+  const handleConfirmDiscard = async (reasonCode: string, notes?: string, dislikedSkill?: string) => {
+    if (!selectedJobForDiscard) return;
+    setIsSubmittingDiscard(true);
+    setFeedbackAlert(null);
+    try {
+      const res = await discardJobApi({
+        job_id: selectedJobForDiscard.id,
+        candidate_profile_id: profile?.id,
+        reason_code: reasonCode,
+        notes,
+        disliked_skill: dislikedSkill,
+      });
+      setDiscardsByJobId((prev) => ({
+        ...prev,
+        [selectedJobForDiscard.id]: res,
+      }));
+      setFeedbackAlert(
+        `Job "${selectedJobForDiscard.title}" marked as discarded (${reasonCode.replace(/_/g, ' ')}). Rocchio recommendation vector updated.`
+      );
+      setIsDiscardModalOpen(false);
+      setSelectedJobForDiscard(null);
+    } catch (err: any) {
+      setFeedbackAlert(`Failed to discard job: ${err.message}`);
+    } finally {
+      setIsSubmittingDiscard(false);
+    }
+  };
+
+  const handleUndoDiscard = async (jobId: string) => {
+    const feedback = discardsByJobId[jobId];
+    if (!feedback) return;
+    try {
+      await deleteFeedbackApi(feedback.id);
+      setDiscardsByJobId((prev) => {
+        const copy = { ...prev };
+        delete copy[jobId];
+        return copy;
+      });
+      setFeedbackAlert('Discard undone. Job restored to recommendations.');
+    } catch (err: any) {
+      setFeedbackAlert(`Failed to undo discard: ${err.message}`);
     }
   };
 
@@ -277,6 +357,9 @@ export const JobDiscoveryPage: React.FC = () => {
   const filteredJobs = (jobs || []).filter((job) => {
     if (!job) return false;
 
+    // Discard filter
+    if (hideDiscarded && discardsByJobId[job.id]) return false;
+
     // Work type filter
     if (workType === 'remote' && !job.is_remote) return false;
     if (workType === 'onsite' && job.is_remote) return false;
@@ -324,7 +407,8 @@ export const JobDiscoveryPage: React.FC = () => {
     workType !== 'all' ||
     employmentType !== 'all' ||
     experienceLevel !== 'all' ||
-    sourceFilter !== 'all';
+    sourceFilter !== 'all' ||
+    hideDiscarded;
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -333,6 +417,7 @@ export const JobDiscoveryPage: React.FC = () => {
     setEmploymentType('all');
     setExperienceLevel('all');
     setSourceFilter('all');
+    setHideDiscarded(false);
   };
 
   return (
@@ -375,15 +460,28 @@ export const JobDiscoveryPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Feedback Status Alert */}
+      {feedbackAlert && (
+        <div className="p-3 bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-200 flex items-center justify-between animate-fade-in">
+          <span>{feedbackAlert}</span>
+          <button
+            onClick={() => setFeedbackAlert(null)}
+            className="text-slate-400 hover:text-white p-1"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Ingestion Status Banner */}
       {ingestionBanner && (
         <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 flex items-center justify-between">
           <span>{ingestionBanner}</span>
           <button
             onClick={() => setIngestionBanner(null)}
-            className="text-slate-400 hover:text-white"
+            className="text-slate-400 hover:text-white p-1"
           >
-            ✕
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
       )}
@@ -501,9 +599,9 @@ export const JobDiscoveryPage: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
             >
               <option value="all">All Experience Levels</option>
-              <option value="entry">🎓 Entry Level (0-2 Yrs)</option>
-              <option value="mid">💼 Mid Level (2-5 Yrs)</option>
-              <option value="senior">🚀 Senior / III+ (5+ Yrs)</option>
+              <option value="entry">Entry Level (0-2 Yrs)</option>
+              <option value="mid">Mid Level (2-5 Yrs)</option>
+              <option value="senior">Senior / Lead (5+ Yrs)</option>
             </select>
           </div>
 
@@ -516,8 +614,8 @@ export const JobDiscoveryPage: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
             >
               <option value="all">All Work Locations</option>
-              <option value="remote">🌐 Remote Only</option>
-              <option value="onsite">🏢 On-site / Office</option>
+              <option value="remote">Remote Only</option>
+              <option value="onsite">On-site / Office</option>
             </select>
           </div>
 
@@ -530,9 +628,9 @@ export const JobDiscoveryPage: React.FC = () => {
               className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
             >
               <option value="all">All Job Types</option>
-              <option value="full-time">💼 Full-time</option>
-              <option value="contract">📄 Contract / Freelance</option>
-              <option value="part-time">⏳ Part-time</option>
+              <option value="full-time">Full-time</option>
+              <option value="contract">Contract / Freelance</option>
+              <option value="part-time">Part-time</option>
             </select>
           </div>
         </div>
@@ -540,26 +638,39 @@ export const JobDiscoveryPage: React.FC = () => {
         {/* Quick-Select Badges Rows */}
         <div className="space-y-2 pt-1 border-t border-slate-800/60">
           {/* Experience Level Quick-Select Badges */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold text-slate-400">Experience:</span>
-            {[
-              { id: 'all', label: 'All Levels' },
-              { id: 'entry', label: '🎓 Entry Level (0-2 Yrs)' },
-              { id: 'mid', label: '💼 Mid Level (2-5 Yrs)' },
-              { id: 'senior', label: '🚀 Senior / Level III+ (5+ Yrs)' },
-            ].map((exp) => (
-              <button
-                key={exp.id}
-                onClick={() => setExperienceLevel(exp.id as any)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                  experienceLevel === exp.id
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-                }`}
-              >
-                {exp.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[11px] font-semibold text-slate-400">Experience:</span>
+              {[
+                { id: 'all', label: 'All Levels' },
+                { id: 'entry', label: 'Entry Level (0-2 Yrs)' },
+                { id: 'mid', label: 'Mid Level (2-5 Yrs)' },
+                { id: 'senior', label: 'Senior / Lead (5+ Yrs)' },
+              ].map((exp) => (
+                <button
+                  key={exp.id}
+                  onClick={() => setExperienceLevel(exp.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                    experienceLevel === exp.id
+                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
+                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                  }`}
+                >
+                  {exp.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Hide Discarded Checkbox Toggle */}
+            <label className="flex items-center gap-2 text-xs text-slate-300 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
+              <input
+                type="checkbox"
+                checked={hideDiscarded}
+                onChange={(e) => setHideDiscarded(e.target.checked)}
+                className="accent-rose-500 rounded"
+              />
+              <span>Hide Discarded Jobs ({Object.keys(discardsByJobId).length})</span>
+            </label>
           </div>
 
           {/* Source Quick-Select Badges */}
@@ -567,7 +678,7 @@ export const JobDiscoveryPage: React.FC = () => {
             <span className="text-[11px] font-semibold text-slate-400">Source:</span>
             {[
               { id: 'all', label: 'All Sources' },
-              { id: 'adzuna', label: 'Adzuna (Naukri / Indeed / LinkedIn)' },
+              { id: 'adzuna', label: 'Adzuna API' },
               { id: 'remotive', label: 'Remotive API' },
               { id: 'manual', label: 'Manual Demo Jobs' },
             ].map((src) => (
@@ -612,11 +723,16 @@ export const JobDiscoveryPage: React.FC = () => {
             const isAnalyzing = analyzingJobIds[job.id];
             const isTracked = !!trackedJobIds[job.id];
             const isTracking = isTrackingJobId[job.id];
+            const isDiscarded = !!discardsByJobId[job.id];
 
             return (
               <div
                 key={job.id}
-                className="bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-xl p-5 shadow-lg flex flex-col justify-between space-y-4 transition-all"
+                className={`bg-slate-900/60 border rounded-xl p-5 shadow-lg flex flex-col justify-between space-y-4 transition-all ${
+                  isDiscarded
+                    ? 'border-rose-900/40 opacity-75 bg-rose-950/10'
+                    : 'border-slate-800 hover:border-slate-700'
+                }`}
               >
                 {/* Job Card Header */}
                 <div>
@@ -739,6 +855,31 @@ export const JobDiscoveryPage: React.FC = () => {
                         </>
                       )}
                     </button>
+
+                    {/* Discard Action */}
+                    {isDiscarded ? (
+                      <div className="flex items-center gap-1.5 bg-rose-950/40 border border-rose-500/30 px-2 py-1 rounded-lg text-rose-300 text-[11px]">
+                        <span className="font-semibold capitalize">
+                          {discardsByJobId[job.id]?.reason_code?.replace(/_/g, ' ')}
+                        </span>
+                        <button
+                          onClick={() => handleUndoDiscard(job.id)}
+                          className="p-1 hover:bg-rose-900/40 rounded transition-colors text-slate-400 hover:text-white"
+                          title="Undo Discard"
+                        >
+                          <RotateCcw className="w-3 h-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => handleOpenDiscard(job)}
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-500/30 text-slate-400 border border-slate-700 transition-colors"
+                        title="Discard recommendation and adjust AI search vector"
+                      >
+                        <ThumbsDown className="w-3.5 h-3.5" />
+                        <span>Discard</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -774,6 +915,20 @@ export const JobDiscoveryPage: React.FC = () => {
           onSavedToApplication={() => {
             if (profile) loadUserApplications(profile.user_id);
           }}
+        />
+      )}
+
+      {/* Discard Reason Modal */}
+      {selectedJobForDiscard && (
+        <DiscardReasonModal
+          job={selectedJobForDiscard}
+          isOpen={isDiscardModalOpen}
+          onClose={() => {
+            setIsDiscardModalOpen(false);
+            setSelectedJobForDiscard(null);
+          }}
+          onConfirm={handleConfirmDiscard}
+          isSubmitting={isSubmittingDiscard}
         />
       )}
     </div>
