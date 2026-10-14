@@ -345,6 +345,17 @@ class JobMatch(Base):
         nullable=True,
     )
 
+    retry_count: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
+
+    last_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     candidate_profile: Mapped["CandidateProfile"] = relationship(
         back_populates="job_matches",
     )
@@ -520,5 +531,40 @@ class FeedbackEvent(Base):
     user: Mapped["User"] = relationship()
     candidate_profile: Mapped["CandidateProfile"] = relationship()
     job: Mapped["Job"] = relationship()
+
+
+class WorkerHeartbeat(Base):
+    """Tracks background worker heartbeat, operational state, and throughput."""
+
+    __tablename__ = "worker_heartbeats"
+
+    worker_id: Mapped[str] = mapped_column(
+        String(100),
+        primary_key=True,
+    )
+
+    status: Mapped[str] = mapped_column(
+        String(50),
+        nullable=False,
+        default="active",
+    )
+
+    last_heartbeat_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=datetime.utcnow,
+        nullable=False,
+    )
+
+    jobs_processed: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        nullable=False,
+    )
+
+    current_stage: Mapped[str | None] = mapped_column(
+        String(50),
+        nullable=True,
+    )
+
 
 

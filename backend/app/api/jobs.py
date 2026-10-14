@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -5,9 +6,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.adapters import AdzunaJobSourceAdapter, ManualJobSourceAdapter, RemotiveJobSourceAdapter
 from app.database import get_db
-from app.models import Job
-from app.schemas.job import IngestionRequest, IngestionResult, JobResponse
+from app.models import Job, WorkerHeartbeat
+from app.schemas.job import (
+    IngestionRequest,
+    IngestionResult,
+    JobResponse,
+    WorkerHeartbeatResponse,
+    WorkerStatusResponse,
+)
 from app.services.job_ingestion import JobIngestionService
+from app.services.job_queue import AsyncJobQueueWorker
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
 
@@ -86,6 +94,98 @@ async def list_jobs(
     result = await db.execute(stmt)
     jobs = result.scalars().all()
     return [JobResponse.model_validate(j) for j in jobs]
+
+
+@router.get(
+    "/worker/status",
+    response_model=WorkerStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Worker Daemon & Pipeline Queue Status",
+    description="Inspects background worker heartbeats, health vitality, and queue depths across all pipeline stages.",
+)
+async def get_worker_status(
+    db: AsyncSession = Depends(get_db),
+) -> WorkerStatusResponse:
+    depths = await AsyncJobQueueWorker.get_queue_depths(db)
+
+    stmt = select(WorkerHeartbeat).order_by(WorkerHeartbeat.last_heartbeat_at.desc())
+    res = await db.execute(stmt)
+    records = res.scalars().all()
+
+    now_utc = datetime.now(timezone.utc)
+    worker_responses = []
+    active_count = 0
+
+    for r in records:
+        ts = r.last_heartbeat_at
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=timezone.utc)
+        age = (now_utc - ts).total_seconds()
+        alive = age < 30.0 and r.status != "stopped"
+        if alive:
+            active_count += 1
+
+        worker_responses.append(
+            WorkerHeartbeatResponse(
+                worker_id=r.worker_id,
+                status=r.status,
+                last_heartbeat_at=r.last_heartbeat_at,
+                jobs_processed=r.jobs_processed,
+                current_stage=r.current_stage,
+                is_alive=alive,
+                age_seconds=round(age, 1),
+            )
+        )
+
+    return WorkerStatusResponse(
+        queue_depths=depths,
+        workers=worker_responses,
+        active_worker_count=active_count,
+    )
+
+
+@router.post(
+    "/worker/trigger-cycle",
+    response_model=WorkerStatusResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Trigger On-Demand Ingestion & Worker Processing Cycle",
+    description="Executes an immediate job ingestion and queue processing cycle, returning updated metrics.",
+)
+async def trigger_worker_cycle(
+    limit: int = Query(default=15, ge=1, le=100),
+    source: str = Query(default="manual"),
+    db: AsyncSession = Depends(get_db),
+) -> WorkerStatusResponse:
+    source_lower = source.strip().lower()
+    if source_lower == "remotive":
+        adapter = RemotiveJobSourceAdapter()
+    elif source_lower == "adzuna":
+        adapter = AdzunaJobSourceAdapter()
+    else:
+        adapter = ManualJobSourceAdapter()
+
+    # 1. Ingest jobs
+    service = JobIngestionService(db)
+    ingest_result = await service.ingest_jobs(adapter=adapter, limit=limit)
+
+    # 2. Enqueue for candidates if jobs inserted
+    if ingest_result.inserted > 0:
+        recent_stmt = (
+            select(Job.id)
+            .where(Job.source == adapter.source_name)
+            .order_by(Job.created_at.desc())
+            .limit(ingest_result.inserted)
+        )
+        recent_jobs = await db.execute(recent_stmt)
+        job_ids = list(recent_jobs.scalars().all())
+        await AsyncJobQueueWorker.enqueue_jobs_for_candidates(db, job_ids)
+
+    # 3. Process a batch from queue
+    worker = AsyncJobQueueWorker(db)
+    await worker.process_batch(batch_size=20)
+
+    # Return refreshed status
+    return await get_worker_status(db=db)
 
 
 @router.get(

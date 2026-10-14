@@ -36,6 +36,7 @@ import { SkillPillList } from '../components/matching/SkillPillList';
 import { MatchDetailModal } from '../components/matching/MatchDetailModal';
 import { TailoringWorkspaceModal } from '../components/tailoring/TailoringWorkspaceModal';
 import { DiscardReasonModal } from '../components/matching/DiscardReasonModal';
+import { WorkerQueueMonitor } from '../components/matching/WorkerQueueMonitor';
 
 function getJobExperienceCategory(job: Job): 'entry' | 'mid' | 'senior' {
   const titleLower = (job.title || '').toLowerCase();
@@ -459,6 +460,9 @@ export const JobDiscoveryPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Background Worker Daemon & Pipeline Queue Monitor */}
+      <WorkerQueueMonitor onCycleTriggered={loadJobs} />
 
       {/* Feedback Status Alert */}
       {feedbackAlert && (

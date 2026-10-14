@@ -42,6 +42,13 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_NAME: str = "sentence-transformers/all-MiniLM-L6-v2"
     EMBEDDING_DIMENSION: int = 384
 
+    # Worker Daemon & Ingestion Settings
+    WORKER_POLL_INTERVAL_SECONDS: float = 2.0
+    WORKER_INGESTION_INTERVAL_SECONDS: float = 60.0
+    WORKER_BATCH_SIZE: int = 10
+    WORKER_MAX_RETRIES: int = 3
+    WORKER_ENABLED_SOURCES: list[str] = ["manual", "remotive"]
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",

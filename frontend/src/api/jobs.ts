@@ -30,3 +30,38 @@ export async function ingestJobs(payload: IngestionRequest): Promise<IngestionRe
     body: JSON.stringify(payload),
   });
 }
+
+export interface WorkerHeartbeat {
+  worker_id: string;
+  status: string;
+  last_heartbeat_at: string;
+  jobs_processed: number;
+  current_stage: string | null;
+  is_alive: boolean;
+  age_seconds: number;
+}
+
+export interface WorkerStatusResponse {
+  queue_depths: {
+    ingested: number;
+    filtered: number;
+    scored: number;
+    tailored: number;
+    notified: number;
+    failed: number;
+    dead_letter: number;
+    [key: string]: number;
+  };
+  workers: WorkerHeartbeat[];
+  active_worker_count: number;
+}
+
+export async function getWorkerStatus(): Promise<WorkerStatusResponse> {
+  return apiClient<WorkerStatusResponse>('/api/v1/jobs/worker/status');
+}
+
+export async function triggerWorkerCycle(limit: number = 15, source: string = 'manual'): Promise<WorkerStatusResponse> {
+  return apiClient<WorkerStatusResponse>(`/api/v1/jobs/worker/trigger-cycle?limit=${limit}&source=${source}`, {
+    method: 'POST',
+  });
+}

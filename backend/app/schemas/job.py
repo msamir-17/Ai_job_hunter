@@ -110,3 +110,21 @@ class JobResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class WorkerHeartbeatResponse(BaseModel):
+    worker_id: str
+    status: str
+    last_heartbeat_at: datetime
+    jobs_processed: int
+    current_stage: str | None = None
+    is_alive: bool = True
+    age_seconds: float = 0.0
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class WorkerStatusResponse(BaseModel):
+    queue_depths: dict[str, int]
+    workers: list[WorkerHeartbeatResponse]
+    active_worker_count: int
