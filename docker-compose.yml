@@ -2,13 +2,13 @@ services:
   db:
     image: pgvector/pgvector:pg16
     container_name: ai_job_hunter_db
-    restart: always
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-ai_job_hunter}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "${POSTGRES_PORT:-5435}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -16,7 +16,86 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - ai_job_hunter_network
+
+  backend:
+    image: ai_job_hunter-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-8080}:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-ai_job_hunter}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SECRET_KEY: ${SECRET_KEY:-development-secret-key-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-key-change-in-production}
+      ACTIVE_LLM_PROVIDER: ${ACTIVE_LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    networks:
+      - ai_job_hunter_network
+
+  worker:
+    image: ai_job_hunter-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-ai_job_hunter}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SECRET_KEY: ${SECRET_KEY:-development-secret-key-change-in-production}
+      JWT_SECRET: ${JWT_SECRET:-development-jwt-secret-key-change-in-production}
+      ACTIVE_LLM_PROVIDER: ${ACTIVE_LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ADZUNA_APP_ID: ${ADZUNA_APP_ID:-}
+      ADZUNA_APP_KEY: ${ADZUNA_APP_KEY:-}
+      WORKER_POLL_INTERVAL_SECONDS: "2.0"
+      WORKER_INGESTION_INTERVAL_SECONDS: "60.0"
+      WORKER_BATCH_SIZE: "10"
+      WORKER_MAX_RETRIES: "3"
+    depends_on:
+      db:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    networks:
+      - ai_job_hunter_network
+
+  frontend:
+    image: ai_job_hunter-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - ai_job_hunter_network
 
 volumes:
   postgres_data:
     name: ai_job_hunter_postgres_data
+
+networks:
+  ai_job_hunter_network:
+    name: ai_job_hunter_net
+    driver: bridge
