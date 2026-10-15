@@ -21,6 +21,7 @@ RUN groupadd -g 10001 appgroup && \
 # Install Python dependencies first for efficient layer caching
 COPY requirements.txt /app/
 RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy application source code and migrations
