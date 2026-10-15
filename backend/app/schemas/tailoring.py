@@ -91,3 +91,14 @@ class DocumentTailoringResponse(BaseModel):
     is_approved_by_user: bool = False
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ATSTailoringRequest(BaseModel):
+    """Request schema for generating an ATS tailored resume."""
+
+    candidate_profile_id: UUID
+    job_id: UUID
+    forced_archetype_id: str | None = Field(
+        default=None,
+        description="Optional forced archetype lens ('genai', 'swe', 'ai_eng', 'data'). Auto-detected if omitted.",
+    )
