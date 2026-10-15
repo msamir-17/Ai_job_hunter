@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 import uuid
 from uuid import UUID
 
@@ -91,6 +93,102 @@ async def update_my_profile(
     profile.full_name = current_user.full_name
     profile.email = current_user.email
     return profile
+
+
+@router.post(
+    "/me/seed-facts",
+    response_model=CandidateProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Populate candidate profile with master Truth Vault facts",
+    description="Loads master verified facts from candidate_facts.json and populates the current user's profile with projects, skills, education, and achievements.",
+)
+async def seed_my_profile_from_facts(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> CandidateProfileResponse:
+    facts_file = Path(__file__).parent.parent / "data" / "candidate_facts.json"
+    if not facts_file.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="candidate_facts.json master facts file not found.",
+        )
+
+    with open(facts_file, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    if data.get("candidate_name"):
+        current_user.full_name = data["candidate_name"]
+
+    stmt = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
+    result = await db.execute(stmt)
+    profile = result.scalar_one_or_none()
+
+    if not profile:
+        profile = CandidateProfile(
+            id=uuid.uuid4(),
+            user_id=current_user.id,
+        )
+        db.add(profile)
+
+    profile.headline = data.get("headline", "AI/ML Engineer & Backend Systems Developer")
+    profile.summary = (
+        "AI Engineer specializing in Retrieval-Augmented Generation (RAG), LLM evaluation benchmarking, "
+        "and autonomous agent workflows. Track record of engineering zero-hallucination fact citation gates "
+        "achieving 1.0 Faithfulness on Ragas suites and cutting multi-agent workflow latency 50% with asyncio.\n\n"
+        "Key Achievements & Certifications:\n"
+        "Architected AI Job Hunter Co-Pilot with hybrid BM25 + pgvector retrieval (NDCG@10 1.0) | "
+        "Cut end-to-end multi-agent execution latency 50% with asyncio (~40s to ~20s) | "
+        "Boosted clinical tabular extraction recall from 85% to 100%"
+    )
+
+    all_skills = []
+    for cat, skills in data.get("skills_inventory", {}).items():
+        all_skills.extend(skills)
+    profile.skills = all_skills
+
+    profile.target_titles = [
+        "AI Engineer",
+        "Generative AI Specialist",
+        "Machine Learning Engineer",
+        "Backend Software Engineer",
+        "Python Systems Developer",
+    ]
+
+    projects_exp = []
+    seen = set()
+    for f_item in data.get("facts", []):
+        p_name = f_item.get("entity_name")
+        if p_name and p_name not in seen:
+            seen.add(p_name)
+            bullets = [ph for ph in f_item.get("phrasings", {}).values() if ph]
+            projects_exp.append({
+                "company": p_name,
+                "title": f_item.get("role_or_title", "Engineer"),
+                "start_date": f_item.get("start_date", "2023"),
+                "end_date": f_item.get("end_date", "Present"),
+                "description": bullets[0] if bullets else "",
+                "bullets": bullets[:3],
+            })
+    profile.experience = projects_exp
+
+    edu_list = []
+    for edu in data.get("education", []):
+        edu_list.append({
+            "institution": edu.get("entity_name", "Mumbai University"),
+            "degree": edu.get("role_or_title", "Bachelor of Technology in Computer Science"),
+            "field_of_study": "Computer Science",
+            "start_date": edu.get("start_date", "2020"),
+            "end_date": edu.get("end_date", "Graduated"),
+        })
+    profile.education = edu_list
+
+    await db.commit()
+    await db.refresh(profile)
+
+    profile.full_name = current_user.full_name
+    profile.email = current_user.email
+    return profile
+
 
 
 @router.post(

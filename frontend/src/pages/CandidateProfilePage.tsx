@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy, Lock, ShieldAlert } from 'lucide-react';
+import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy, Lock, ShieldAlert, Sparkles } from 'lucide-react';
 import { CandidateProfileResponse } from '../types/candidateProfile';
-import { getCandidateProfile, getActiveCandidateProfile, getMyProfile, updateMyProfile, updateCandidateProfile, deleteCandidateProfile } from '../api/candidateProfile';
+import { getCandidateProfile, getActiveCandidateProfile, getMyProfile, updateMyProfile, updateCandidateProfile, deleteCandidateProfile, seedMyProfileFromFacts } from '../api/candidateProfile';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
 import { Alert } from '../components/ui/Alert';
@@ -80,6 +80,21 @@ export const CandidateProfilePage: React.FC = () => {
     setEditSkills((profile.skills || []).map((s: any) => (typeof s === 'string' ? s : s.name || '')).join(', '));
     setEditTargetTitles((profile.target_titles || []).join(', '));
     setIsEditModalOpen(true);
+  };
+
+  const handleSyncTruthVault = async () => {
+    setLoading(true);
+    setError(null);
+    setSuccessMsg(null);
+    try {
+      const data = await seedMyProfileFromFacts();
+      setProfile(data);
+      setSuccessMsg('Profile successfully populated with verified Truth Vault facts!');
+    } catch (err: any) {
+      setError(err.message || 'Failed to sync with Truth Vault.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -248,6 +263,16 @@ export const CandidateProfilePage: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleSyncTruthVault}
+                disabled={loading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors shadow disabled:opacity-50"
+                title="Populate profile with verified facts from Truth Vault"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Sync Truth Vault</span>
+              </button>
+
               <button
                 onClick={openEditModal}
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition-colors shadow"

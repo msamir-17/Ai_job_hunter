@@ -64,3 +64,10 @@ export async function deleteCandidateProfile(
     method: 'DELETE',
   });
 }
+
+export async function seedMyProfileFromFacts(): Promise<CandidateProfileResponse> {
+  return apiClient<CandidateProfileResponse>('/api/v1/candidate-profile/me/seed-facts', {
+    method: 'POST',
+  });
+}
+
