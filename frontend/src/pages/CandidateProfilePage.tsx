@@ -15,8 +15,8 @@ export const CandidateProfilePage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [showInspector, setShowInspector] = useState<boolean>(false);
 
-  // Edit Modal State
-  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  // Inline Edit State
+  const [isEditing, setIsEditing] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [editHeadline, setEditHeadline] = useState<string>('');
   const [editSummary, setEditSummary] = useState<string>('');
@@ -63,7 +63,7 @@ export const CandidateProfilePage: React.FC = () => {
     }
   };
 
-  const openEditModal = () => {
+  const handleStartEdit = () => {
     if (!profile) return;
     setEditHeadline(profile.headline || '');
 
@@ -79,7 +79,11 @@ export const CandidateProfilePage: React.FC = () => {
 
     setEditSkills((profile.skills || []).map((s: any) => (typeof s === 'string' ? s : s.name || '')).join(', '));
     setEditTargetTitles((profile.target_titles || []).join(', '));
-    setIsEditModalOpen(true);
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
   };
 
   const handleSyncTruthVault = async () => {
@@ -135,7 +139,7 @@ export const CandidateProfilePage: React.FC = () => {
       }
 
       setProfile(updated);
-      setIsEditModalOpen(false);
+      setIsEditing(false);
       setSuccessMsg('Profile updated successfully in PostgreSQL database (Scoped to your account)!');
     } catch (err: any) {
       setError(err.message || 'Failed to update profile.');
@@ -250,183 +254,85 @@ export const CandidateProfilePage: React.FC = () => {
       {successMsg && <Alert variant="success" className="mb-6">{successMsg}</Alert>}
 
       {profile ? (
-        <Card header={
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-950 border border-slate-800 text-emerald-400 rounded-lg">
-                <User className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-white">{profile.headline || 'Candidate Profile'}</h3>
-                <p className="text-xs font-mono text-slate-400">Profile ID: {profile.id}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSyncTruthVault}
-                disabled={loading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors shadow disabled:opacity-50"
-                title="Populate profile with verified facts from Truth Vault"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Sync Truth Vault</span>
-              </button>
-
-              <button
-                onClick={openEditModal}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition-colors shadow"
-                title="Edit candidate profile fields"
-              >
-                <Edit2 className="w-3.5 h-3.5" />
-                <span>Edit Profile</span>
-              </button>
-
-              <button
-                onClick={handleDeleteProfile}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors"
-                title="Delete candidate profile"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>Delete</span>
-              </button>
-            </div>
-          </div>
-        }>
-          <div className="space-y-6 text-xs">
-            {profile.summary && (
-              <div>
-                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
-                  Professional Summary
-                </h4>
-                <p className="text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                  {profile.summary}
-                </p>
-              </div>
-            )}
-
-            {profile.skills && profile.skills.length > 0 && (
-              <div>
-                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Cpu className="w-4 h-4 text-indigo-400" />
-                  Verified Technical Skills ({profile.skills.length})
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.skills.map((skill: any, idx: number) => (
-                    <span key={idx} className="px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px]">
-                      {typeof skill === 'string' ? skill : skill.name || JSON.stringify(skill)}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {profile.experience && profile.experience.length > 0 && (
-              <div>
-                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Briefcase className="w-4 h-4 text-sky-400" />
-                  Verified Work Experience ({profile.experience.length})
-                </h4>
-                <div className="space-y-3">
-                  {profile.experience.map((exp: any, idx: number) => (
-                    <div key={idx} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800">
-                      <div className="flex items-center justify-between font-bold text-white text-xs mb-1">
-                        <span>{exp.title || 'Role'} {exp.company && <span className="text-slate-400 font-normal">at {exp.company}</span>}</span>
-                        <span className="text-[11px] font-mono text-slate-500">{exp.start_date || ''} - {exp.end_date || ''}</span>
-                      </div>
-                      {exp.location && <p className="text-[11px] text-slate-500 mb-2">{exp.location}</p>}
-                      {exp.description && <p className="text-slate-300 text-xs mb-2 leading-relaxed">{exp.description}</p>}
+        isEditing ? (
+          /* Inline Editing Card */
+          <Card
+            className="border-sky-500/40 ring-1 ring-sky-500/20"
+            header={
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-sky-500/10 border border-sky-500/30 text-sky-400 rounded-lg">
+                    <Edit2 className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-white">Editing Candidate Profile</h3>
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                        Inline Edit Mode
+                      </span>
                     </div>
-                  ))}
+                    <p className="text-xs font-mono text-slate-400">Profile ID: {profile.id}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-slate-300 transition-colors"
+                    title="Cancel changes and exit edit mode"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Cancel</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleSaveProfile}
+                    disabled={isSaving}
+                    className="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-bold text-white transition-all disabled:opacity-50 shadow-md shadow-sky-600/30"
+                    title="Save profile changes directly to PostgreSQL"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{isSaving ? 'Saving...' : 'Save Profile'}</span>
+                  </button>
                 </div>
               </div>
-            )}
-
-            {profile.education && profile.education.length > 0 && (
+            }
+          >
+            <form onSubmit={handleSaveProfile} className="space-y-6 text-xs">
+              {/* Headline Field */}
               <div>
-                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <GraduationCap className="w-4 h-4 text-emerald-400" />
-                  Verified Education ({profile.education.length})
-                </h4>
-                <div className="space-y-2">
-                  {profile.education.map((edu: any, idx: number) => (
-                    <div key={idx} className="p-3 bg-slate-950/60 rounded-lg border border-slate-800 flex items-center justify-between">
-                      <div>
-                        <span className="font-bold text-white">{edu.degree || 'Degree'} {edu.field_of_study && `in ${edu.field_of_study}`}</span>
-                        {edu.institution && <p className="text-slate-400 text-[11px]">{edu.institution}</p>}
-                      </div>
-                      <span className="text-[10px] font-mono text-slate-500">{edu.start_date || ''} - {edu.end_date || ''}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {profile.target_titles && profile.target_titles.length > 0 && (
-              <div>
-                <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Target className="w-4 h-4 text-amber-400" />
-                  Target Job Roles ({profile.target_titles.length})
-                </h4>
-                <div className="flex flex-wrap gap-1.5">
-                  {profile.target_titles.map((title: string, idx: number) => (
-                    <span key={idx} className="px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-amber-300 font-medium text-[11px]">
-                      {title}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </Card>
-      ) : (
-        <Card className="text-center py-12 text-slate-500 text-xs">
-          Enter a Candidate Profile UUID above to view verified profile records.
-        </Card>
-      )}
-
-      {/* Edit Profile Modal */}
-      {isEditModalOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <div className="flex items-center gap-2">
-                <Edit2 className="w-5 h-5 text-sky-400" />
-                <h3 className="text-base font-bold text-white">Edit Candidate Profile</h3>
-              </div>
-              <button
-                onClick={() => setIsEditModalOpen(false)}
-                className="text-slate-400 hover:text-white p-1 rounded-lg"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSaveProfile} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Headline</label>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                  Headline
+                </label>
                 <input
                   type="text"
                   value={editHeadline}
                   onChange={(e) => setEditHeadline(e.target.value)}
-                  placeholder="e.g. Senior Python & AI/ML Engineer"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                  placeholder="e.g. AI/ML Engineer & Backend Systems Developer"
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg px-3 py-2 text-xs text-white focus:outline-none transition-colors"
                 />
               </div>
 
+              {/* Professional Summary Field */}
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">Professional Summary</label>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                  Professional Summary
+                </label>
                 <textarea
-                  rows={3}
+                  rows={4}
                   value={editSummary}
                   onChange={(e) => setEditSummary(e.target.value)}
                   placeholder="Concise overview of your verified experience and technical strengths..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-white focus:outline-none focus:border-sky-500 resize-none font-sans"
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-sky-500 rounded-lg p-3 text-xs text-slate-200 focus:outline-none leading-relaxed resize-y font-sans transition-colors"
                 />
               </div>
 
+              {/* Key Achievements Field */}
               <div>
-                <label className="block font-semibold text-amber-300 mb-1 flex items-center gap-1.5">
+                <label className="block text-[11px] font-semibold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
                   <Trophy className="w-3.5 h-3.5 text-amber-400" />
                   Key Achievements, Certifications & Honors
                 </label>
@@ -434,57 +340,251 @@ export const CandidateProfilePage: React.FC = () => {
                   rows={3}
                   value={editAchievements}
                   onChange={(e) => setEditAchievements(e.target.value)}
-                  placeholder="e.g. Published AI paper at NeurIPS 2024 | AWS Certified Solutions Architect | Hackathon Winner"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs text-amber-200 placeholder-slate-600 focus:outline-none focus:border-amber-500/50 resize-none font-sans"
+                  placeholder="e.g. Architected AI Job Hunter Co-Pilot with hybrid BM25 + pgvector retrieval (NDCG@10 1.0) | Published AI paper at NeurIPS 2024"
+                  className="w-full bg-slate-950 border border-amber-900/40 focus:border-amber-500 rounded-lg p-3 text-xs text-amber-100 placeholder-slate-600 focus:outline-none leading-relaxed resize-y font-sans transition-colors"
                 />
               </div>
 
+              {/* Verified Technical Skills Field */}
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Verified Skills <span className="text-slate-500 font-normal">(Comma separated)</span>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                  <Cpu className="w-4 h-4 text-indigo-400" />
+                  Verified Technical Skills <span className="text-slate-500 font-normal lowercase">(comma separated)</span>
                 </label>
-                <input
-                  type="text"
+                <textarea
+                  rows={3}
                   value={editSkills}
                   onChange={(e) => setEditSkills(e.target.value)}
-                  placeholder="Python, PyTorch, PostgreSQL, FastAPI..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-sky-500"
+                  placeholder="Python, PyTorch, LangChain, PostgreSQL, FastAPI..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-indigo-500 rounded-lg p-3 text-xs text-indigo-200 font-mono focus:outline-none leading-relaxed resize-y transition-colors"
                 />
+                {editSkills.trim() && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {editSkills.split(',').map((s) => s.trim()).filter(Boolean).map((skill, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-slate-300 font-mono text-[10px]">
+                        {skill}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
+              {/* Target Job Roles Field */}
               <div>
-                <label className="block font-semibold text-slate-300 mb-1">
-                  Target Job Roles <span className="text-slate-500 font-normal">(Comma separated)</span>
+                <label className="block text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                  <Target className="w-4 h-4 text-amber-400" />
+                  Target Job Roles <span className="text-slate-500 font-normal lowercase">(comma separated)</span>
                 </label>
                 <input
                   type="text"
                   value={editTargetTitles}
                   onChange={(e) => setEditTargetTitles(e.target.value)}
-                  placeholder="AI Engineer, ML Engineer, Python Developer..."
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-sky-500"
+                  placeholder="AI Engineer, Generative AI Specialist, Machine Learning Engineer..."
+                  className="w-full bg-slate-950 border border-slate-700 focus:border-amber-500 rounded-lg px-3 py-2 text-xs text-amber-200 focus:outline-none transition-colors"
                 />
+                {editTargetTitles.trim() && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {editTargetTitles.split(',').map((t) => t.trim()).filter(Boolean).map((role, idx) => (
+                      <span key={idx} className="px-2 py-0.5 rounded bg-slate-950 border border-slate-800 text-amber-300 font-medium text-[10px]">
+                        {role}
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-end gap-2">
+              {/* Bottom Actions */}
+              <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
-                  onClick={() => setIsEditModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white bg-slate-950 border border-slate-800 transition-colors"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-lg shadow-sky-600/20"
+                  className="px-5 py-2 rounded-lg text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-md shadow-sky-600/30"
                 >
                   <Check className="w-4 h-4" />
-                  {isSaving ? 'Saving...' : 'Save Profile'}
+                  <span>{isSaving ? 'Saving...' : 'Save Profile'}</span>
                 </button>
               </div>
+
+              {/* Verified Truth Vault References while editing */}
+              {profile.experience && profile.experience.length > 0 && (
+                <div className="pt-4 border-t border-slate-800/80">
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Briefcase className="w-4 h-4 text-sky-400" />
+                    Verified Work Experience Reference ({profile.experience.length})
+                  </h4>
+                  <div className="space-y-2 opacity-75">
+                    {profile.experience.map((exp: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-slate-950/40 rounded-lg border border-slate-800/60">
+                        <div className="flex items-center justify-between font-bold text-white text-xs">
+                          <span>{exp.title || 'Role'} {exp.company && <span className="text-slate-400 font-normal">at {exp.company}</span>}</span>
+                          <span className="text-[10px] font-mono text-slate-500">{exp.start_date || ''} - {exp.end_date || ''}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </form>
-          </div>
-        </div>
+          </Card>
+        ) : (
+          /* Read-Only Profile Card */
+          <Card header={
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-950 border border-slate-800 text-emerald-400 rounded-lg">
+                  <User className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white">{profile.headline || 'Candidate Profile'}</h3>
+                  <p className="text-xs font-mono text-slate-400">Profile ID: {profile.id}</p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncTruthVault}
+                  disabled={loading}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white transition-colors shadow disabled:opacity-50"
+                  title="Populate profile with verified facts from Truth Vault"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Sync Truth Vault</span>
+                </button>
+
+                <button
+                  onClick={handleStartEdit}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-xs font-semibold text-white transition-colors shadow"
+                  title="Edit candidate profile fields inline"
+                >
+                  <Edit2 className="w-3.5 h-3.5" />
+                  <span>Edit Profile</span>
+                </button>
+
+                <button
+                  onClick={handleDeleteProfile}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 text-xs font-semibold transition-colors"
+                  title="Delete candidate profile"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            </div>
+          }>
+            <div className="space-y-6 text-xs">
+              {profile.summary && (
+                <div>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-1">
+                    Professional Summary
+                  </h4>
+                  <div className="space-y-3">
+                    <p className="text-slate-300 leading-relaxed bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+                      {profile.summary.includes('Key Achievements & Certifications:')
+                        ? profile.summary.split('Key Achievements & Certifications:')[0].trim()
+                        : profile.summary}
+                    </p>
+                    {profile.summary.includes('Key Achievements & Certifications:') && (
+                      <div className="bg-amber-950/20 border border-amber-500/20 p-3 rounded-lg">
+                        <h5 className="text-[10px] font-bold text-amber-400 uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                          <Trophy className="w-3.5 h-3.5 text-amber-400" />
+                          Key Achievements, Certifications & Honors
+                        </h5>
+                        <p className="text-amber-200/90 leading-relaxed text-xs">
+                          {profile.summary.split('Key Achievements & Certifications:')[1].trim()}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {profile.skills && profile.skills.length > 0 && (
+                <div>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Cpu className="w-4 h-4 text-indigo-400" />
+                    Verified Technical Skills ({profile.skills.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.skills.map((skill: any, idx: number) => (
+                      <span key={idx} className="px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-slate-200 font-mono text-[11px]">
+                        {typeof skill === 'string' ? skill : skill.name || JSON.stringify(skill)}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.experience && profile.experience.length > 0 && (
+                <div>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Briefcase className="w-4 h-4 text-sky-400" />
+                    Verified Work Experience ({profile.experience.length})
+                  </h4>
+                  <div className="space-y-3">
+                    {profile.experience.map((exp: any, idx: number) => (
+                      <div key={idx} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800">
+                        <div className="flex items-center justify-between font-bold text-white text-xs mb-1">
+                          <span>{exp.title || 'Role'} {exp.company && <span className="text-slate-400 font-normal">at {exp.company}</span>}</span>
+                          <span className="text-[11px] font-mono text-slate-500">{exp.start_date || ''} - {exp.end_date || ''}</span>
+                        </div>
+                        {exp.location && <p className="text-[11px] text-slate-500 mb-2">{exp.location}</p>}
+                        {exp.description && <p className="text-slate-300 text-xs mb-2 leading-relaxed">{exp.description}</p>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.education && profile.education.length > 0 && (
+                <div>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4 text-emerald-400" />
+                    Verified Education ({profile.education.length})
+                  </h4>
+                  <div className="space-y-2">
+                    {profile.education.map((edu: any, idx: number) => (
+                      <div key={idx} className="p-3 bg-slate-950/60 rounded-lg border border-slate-800 flex items-center justify-between">
+                        <div>
+                          <span className="font-bold text-white">{edu.degree || 'Degree'} {edu.field_of_study && `in ${edu.field_of_study}`}</span>
+                          {edu.institution && <p className="text-slate-400 text-[11px]">{edu.institution}</p>}
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-500">{edu.start_date || ''} - {edu.end_date || ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {profile.target_titles && profile.target_titles.length > 0 && (
+                <div>
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                    <Target className="w-4 h-4 text-amber-400" />
+                    Target Job Roles ({profile.target_titles.length})
+                  </h4>
+                  <div className="flex flex-wrap gap-1.5">
+                    {profile.target_titles.map((title: string, idx: number) => (
+                      <span key={idx} className="px-2.5 py-1 rounded bg-slate-950 border border-slate-800 text-amber-300 font-medium text-[11px]">
+                        {title}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </Card>
+        )
+      ) : (
+        <Card className="text-center py-12 text-slate-500 text-xs">
+          Enter a Candidate Profile UUID above to view verified profile records.
+        </Card>
       )}
     </div>
   );
