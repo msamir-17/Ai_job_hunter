@@ -1,0 +1,288 @@
+{
+  "candidate_name": "Mohd Samir",
+  "headline": "AI/ML Engineer & Backend Systems Developer",
+  "email": "samir.dev@example.com",
+  "location": "Mumbai, India (Open to Remote / Relocation)",
+  "github_url": "https://github.com/msamir-17",
+  "linkedin_url": "https://linkedin.com/in/msamir",
+  "portfolio_url": "https://samir.dev",
+  "education": [
+    {
+      "fact_id": "edu_btech_cs",
+      "category": "education",
+      "entity_name": "Mumbai University",
+      "role_or_title": "Bachelor of Technology in Computer Science",
+      "start_date": "2020",
+      "end_date": "Graduated",
+      "tags": ["education", "computer_science", "algorithms"],
+      "metrics": [],
+      "phrasings": {
+        "default": "Bachelor of Technology in Computer Science, Mumbai University (Graduated).",
+        "genai": "B.Tech in Computer Science, Mumbai University — Focused on Artificial Intelligence and Natural Language Processing (Graduated).",
+        "swe": "B.Tech in Computer Science, Mumbai University — Coursework in Distributed Systems, Database Management, and Operating Systems (Graduated)."
+      },
+      "is_flagship": false
+    }
+  ],
+  "skills_inventory": {
+    "GenAI & LLMs": [
+      "LangChain",
+      "LangGraph",
+      "Ragas Evaluation",
+      "HuggingFace Transformers",
+      "RAG Architecture",
+      "Prompt Engineering",
+      "Fact Grounding"
+    ],
+    "AI & Machine Learning": [
+      "Python",
+      "PyTorch",
+      "scikit-learn",
+      "SentenceTransformers",
+      "Vector Embeddings",
+      "BM25 Search",
+      "NumPy",
+      "Pandas"
+    ],
+    "Backend & Systems": [
+      "FastAPI",
+      "SQLAlchemy 2.0",
+      "AsyncPG",
+      "Pydantic v2",
+      "REST APIs",
+      "Uvicorn",
+      "Asynchronous I/O (asyncio)",
+      "JWT Authentication"
+    ],
+    "Databases & Search": [
+      "PostgreSQL 16",
+      "pgvector",
+      "Redis",
+      "Full-Text Search",
+      "Alembic Database Migrations"
+    ],
+    "DevOps & Engineering Practices": [
+      "Docker",
+      "Docker Compose",
+      "Git",
+      "Linux/Bash",
+      "Nginx",
+      "CI/CD (GitHub Actions)",
+      "Chrome Extension (Manifest V3)"
+    ]
+  },
+  "facts": [
+    {
+      "fact_id": "job_hunter_hybrid_search",
+      "category": "project",
+      "entity_name": "AI Job Hunter Co-Pilot",
+      "role_or_title": "Lead Engineer & Architect",
+      "start_date": "2024",
+      "end_date": "Present",
+      "tags": ["genai", "ai_ml", "backend", "search", "retrieval", "pgvector", "bm25"],
+      "metrics": [
+        {
+          "metric_name": "ndcg_at_10",
+          "baseline": null,
+          "achieved": "1.0",
+          "unit": null,
+          "context": "150-case ground-truth labeled benchmark dataset"
+        }
+      ],
+      "phrasings": {
+        "genai": "Engineered hybrid retrieval pipeline coupling BM25 keyword matching with pgvector 384-dim dense embeddings, achieving NDCG@10 of 1.0 on a 150-case benchmark dataset.",
+        "swe": "Architected two-stage candidate-job matching engine combining PostgreSQL pgvector and lexical search, cutting query execution latency while preserving precision.",
+        "ai_eng": "Designed and calibrated hybrid dense-sparse retrieval system combining HuggingFace all-MiniLM-L6-v2 embeddings and BM25 search with a calibrated 0.20 cosine cutoff threshold.",
+        "default": "Built hybrid BM25 and pgvector retrieval engine with calibrated 0.20 similarity thresholding achieving NDCG@10 of 1.0."
+      },
+      "is_flagship": true
+    },
+    {
+      "fact_id": "job_hunter_fact_verifier",
+      "category": "project",
+      "entity_name": "AI Job Hunter Co-Pilot",
+      "role_or_title": "Lead Engineer & Architect",
+      "start_date": "2024",
+      "end_date": "Present",
+      "tags": ["genai", "evaluation", "safety", "anti_hallucination", "ragas"],
+      "metrics": [
+        {
+          "metric_name": "faithfulness",
+          "baseline": null,
+          "achieved": "1.0",
+          "unit": null,
+          "context": "50-case Ragas evaluation suite"
+        }
+      ],
+      "phrasings": {
+        "genai": "Implemented deterministic FactVerifierService enforcing cited fact IDs and metric validation, achieving 1.0 Faithfulness on a 50-case Ragas evaluation suite.",
+        "swe": "Built automated verification gate rejecting fabricated claims, metric drifts, and prompt injection attacks through deterministic regex and numerical grounding checks.",
+        "ai_eng": "Developed automated anti-hallucination guardrail validating cited fact IDs and metric consistency against candidate ground-truth profile data.",
+        "default": "Created deterministic FactVerifierService ensuring 1.0 Faithfulness on a 50-case Ragas suite with verified factual citations."
+      },
+      "is_flagship": true
+    },
+    {
+      "fact_id": "job_hunter_async_queue",
+      "category": "project",
+      "entity_name": "AI Job Hunter Co-Pilot",
+      "role_or_title": "Lead Engineer & Architect",
+      "start_date": "2024",
+      "end_date": "Present",
+      "tags": ["backend", "swe", "concurrency", "queue", "database", "postgresql", "dlq"],
+      "metrics": [
+        {
+          "metric_name": "queue_concurrency",
+          "baseline": null,
+          "achieved": "multi-worker",
+          "unit": null,
+          "context": "PostgreSQL SELECT FOR UPDATE SKIP LOCKED"
+        }
+      ],
+      "phrasings": {
+        "swe": "Engineered distributed background job queue using PostgreSQL SELECT FOR UPDATE SKIP LOCKED with automatic Dead Letter Queue (DLQ) retry semantics.",
+        "genai": "Integrated asynchronous job ingestion daemon with SHA-256 LLM response caching to eliminate duplicate API calls and avoid upstream rate-limit throttling.",
+        "ai_eng": "Built asynchronous batch ingestion pipeline handling streaming job feeds with exponential backoff and Dead Letter Queue error isolation.",
+        "default": "Engineered asynchronous background worker daemon with PostgreSQL FOR UPDATE SKIP LOCKED queue and Dead Letter Queue error handling."
+      },
+      "is_flagship": true
+    },
+    {
+      "fact_id": "job_hunter_sidecar",
+      "category": "project",
+      "entity_name": "AI Job Hunter Co-Pilot",
+      "role_or_title": "Lead Engineer & Architect",
+      "start_date": "2024",
+      "end_date": "Present",
+      "tags": ["frontend", "chrome_extension", "hitl", "automation", "dom"],
+      "metrics": [],
+      "phrasings": {
+        "swe": "Developed Chrome Extension (Manifest V3) utilizing MutationObserver for Human-in-the-Loop DOM auto-detection and synthetic event dispatching on job portals.",
+        "genai": "Created Human-in-the-Loop Chrome Extension sidecar integrating tailored application drafts directly into ATS portal application forms.",
+        "default": "Created Manifest V3 Chrome Extension sidecar enabling non-invasive Human-in-the-Loop autofill across Greenhouse, Lever, and Workday."
+      },
+      "is_flagship": true
+    },
+    {
+      "fact_id": "advisor_latency",
+      "category": "project",
+      "entity_name": "Autonomous Financial Advisory Platform",
+      "role_or_title": "AI & Systems Engineer",
+      "start_date": "2023",
+      "end_date": "2024",
+      "tags": ["backend", "genai", "performance", "concurrency", "asyncio"],
+      "metrics": [
+        {
+          "metric_name": "latency",
+          "baseline": "~40s",
+          "achieved": "~20s",
+          "unit": "seconds",
+          "context": "end-to-end multi-agent workflow"
+        }
+      ],
+      "phrasings": {
+        "genai": "Cut end-to-end latency 50% (~40s to ~20s) by migrating ThreadPoolExecutor to asyncio with bounded concurrency and intelligent tool routing.",
+        "swe": "Diagnosed a critical concurrency bottleneck and restructured execution model to asyncio, reducing processing latency 50% (~40s to ~20s).",
+        "ai_eng": "Optimized multi-agent financial research pipeline with parallel async tool invocations, cutting end-to-end response time from ~40s to ~20s.",
+        "default": "Reduced end-to-end execution latency 50% (~40s to ~20s) by re-architecting concurrency model with asyncio."
+      },
+      "is_flagship": false
+    },
+    {
+      "fact_id": "advisor_routing",
+      "category": "project",
+      "entity_name": "Autonomous Financial Advisory Platform",
+      "role_or_title": "AI & Systems Engineer",
+      "start_date": "2023",
+      "end_date": "2024",
+      "tags": ["genai", "langgraph", "workflow", "state_machine"],
+      "metrics": [],
+      "phrasings": {
+        "genai": "Designed conditional routing state graph with LangGraph to orchestrate market research, portfolio risk assessment, and synthesis nodes.",
+        "swe": "Implemented stateful workflow engine with idempotent node transitions, structured Pydantic schemas, and fallback recovery handlers.",
+        "default": "Built multi-agent workflow with LangGraph coordinating intent classification and financial data retrieval."
+      },
+      "is_flagship": false
+    },
+    {
+      "fact_id": "mediai_tabular_recall",
+      "category": "project",
+      "entity_name": "MediAI Clinical Assistant",
+      "role_or_title": "NLP / AI Engineer",
+      "start_date": "2023",
+      "end_date": "2023",
+      "tags": ["genai", "ai_ml", "pdf_parsing", "tabular_recall", "rag"],
+      "metrics": [
+        {
+          "metric_name": "tabular_recall",
+          "baseline": "85%",
+          "achieved": "100%",
+          "unit": "%",
+          "context": "clinical trial lab table extraction"
+        }
+      ],
+      "phrasings": {
+        "genai": "Boosted Tabular Recall from 85% to 100% on complex lab tables by coupling layout-aware PDF extraction with targeted schema parsing.",
+        "ai_eng": "Improved Tabular Recall from 85% to 100% across multi-format clinical documents by implementing structure-aware chunking and token alignment.",
+        "swe": "Optimized unstructured document ingestion parser for multi-page lab reports, raising Tabular Recall from 85% to 100%.",
+        "default": "Increased Tabular Recall from 85% to 100% on complex clinical trial tables through layout-aware PDF parsing."
+      },
+      "is_flagship": false
+    },
+    {
+      "fact_id": "mediai_privacy",
+      "category": "project",
+      "entity_name": "MediAI Clinical Assistant",
+      "role_or_title": "NLP / AI Engineer",
+      "start_date": "2023",
+      "end_date": "2023",
+      "tags": ["security", "hipaa", "privacy", "sanitization"],
+      "metrics": [],
+      "phrasings": {
+        "genai": "Engineered regex-driven HIPAA/PII token anonymization layer masking patient identifiers before LLM inference.",
+        "swe": "Implemented zero-trust data sanitization middleware ensuring all outbound payloads conform to strict HIPAA de-identification standards.",
+        "default": "Built HIPAA-compliant PII de-identification filter scrubbing sensitive patient identifiers prior to cloud model processing."
+      },
+      "is_flagship": false
+    },
+    {
+      "fact_id": "nmt_transformer",
+      "category": "project",
+      "entity_name": "Neural Machine Translation (NMT) Transformer",
+      "role_or_title": "Deep Learning Developer",
+      "start_date": "2023",
+      "end_date": "2023",
+      "tags": ["ai_ml", "deep_learning", "pytorch", "transformers", "nlp"],
+      "metrics": [
+        {
+          "metric_name": "bleu_score",
+          "baseline": null,
+          "achieved": "32.4",
+          "unit": "BLEU",
+          "context": "WMT English-to-Hindi benchmark"
+        }
+      ],
+      "phrasings": {
+        "ai_eng": "Built and trained a Sequence-to-Sequence Transformer model with custom multi-head self-attention in PyTorch, achieving a 32.4 BLEU score.",
+        "swe": "Implemented vectorized matrix operations and positional encodings in PyTorch with optimized batch data loaders and gradient clipping.",
+        "default": "Trained Seq2Seq Transformer model from scratch using PyTorch with scaled dot-product attention and beam search decoding."
+      },
+      "is_flagship": false
+    },
+    {
+      "fact_id": "cms_fullstack",
+      "category": "project",
+      "entity_name": "Full-Stack Content Management Platform",
+      "role_or_title": "Full-Stack Developer",
+      "start_date": "2022",
+      "end_date": "2023",
+      "tags": ["swe", "backend", "frontend", "react", "fastapi", "auth", "jwt"],
+      "metrics": [],
+      "phrasings": {
+        "swe": "Developed full-stack web application with React, TypeScript, FastAPI, and PostgreSQL featuring JWT authentication, CORS, and role-based access control.",
+        "default": "Built responsive web application using React, TypeScript, FastAPI, and PostgreSQL with role-based access control and JWT authentication."
+      },
+      "is_flagship": false
+    }
+  ]
+}
