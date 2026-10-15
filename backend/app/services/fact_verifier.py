@@ -131,6 +131,26 @@ class FactVerifierService:
             if trigger in text_lower:
                 violations.append(f"Adversarial prompt injection pattern detected: '{trigger}'.")
 
+        # Check 5: Anti-Leak Regex Guard (Disallow pasting JD/recruiter text into resume)
+        leaked_triggers = [
+            r"\bthis role\b",
+            r"\bthe role cares about\b",
+            r"\bthis role is responsible for\b",
+            r"\bour company\b",
+            r"\bthe ideal candidate\b",
+            r"\ba core evaluation dimension\b",
+            r"\blooking for in this role\b",
+        ]
+        for trigger_pat in leaked_triggers:
+            if re.search(trigger_pat, text_lower):
+                violations.append(f"Leaked job description / recruiter prompt phrase detected: '{trigger_pat}'.")
+
+        # Check 6: Metric Name & Semantic Inflation Consistency Check
+        # Prevents inflating 'recall' to 'accuracy' or vice-versa
+        if "accuracy" in text_lower and ("85%" in text_lower or "100%" in text_lower):
+            if "accuracy" not in candidate_text_full and "tabular recall" in candidate_text_full:
+                violations.append("Semantic inflation: Bullet asserts 'accuracy' for table extraction, but candidate fact verifies 'tabular recall'.")
+
         is_valid = len(violations) == 0
         return is_valid, violations
 

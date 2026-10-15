@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # AI Job Hunter Co-Pilot - Docker Deployment Helper Script (Bash)
+
 set -euo pipefail
 
 ACTION="${1:-status}"
