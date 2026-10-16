@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy, Lock, ShieldAlert, Sparkles } from 'lucide-react';
+import { User, Key, Search, ShieldCheck, Cpu, Briefcase, GraduationCap, Target, Edit2, Trash2, X, Check, Trophy, Lock, ShieldAlert, Sparkles, Plus } from 'lucide-react';
 import { CandidateProfileResponse } from '../types/candidateProfile';
+import { ExperienceItem, EducationItem } from '../types/resume';
 import { getCandidateProfile, getActiveCandidateProfile, getMyProfile, updateMyProfile, updateCandidateProfile, deleteCandidateProfile, seedMyProfileFromFacts } from '../api/candidateProfile';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/ui/Card';
@@ -23,6 +24,8 @@ export const CandidateProfilePage: React.FC = () => {
   const [editAchievements, setEditAchievements] = useState<string>('');
   const [editSkills, setEditSkills] = useState<string>('');
   const [editTargetTitles, setEditTargetTitles] = useState<string>('');
+  const [editExperience, setEditExperience] = useState<ExperienceItem[]>([]);
+  const [editEducation, setEditEducation] = useState<EducationItem[]>([]);
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -79,11 +82,86 @@ export const CandidateProfilePage: React.FC = () => {
 
     setEditSkills((profile.skills || []).map((s: any) => (typeof s === 'string' ? s : s.name || '')).join(', '));
     setEditTargetTitles((profile.target_titles || []).join(', '));
+
+    setEditExperience(
+      (profile.experience || []).map((exp: any) => ({
+        title: exp.title || '',
+        company: exp.company || '',
+        location: exp.location || '',
+        start_date: exp.start_date || '',
+        end_date: exp.end_date || '',
+        description: exp.description || '',
+        achievements: Array.isArray(exp.achievements)
+          ? exp.achievements
+          : exp.description
+          ? [exp.description]
+          : [],
+        technologies: Array.isArray(exp.technologies) ? exp.technologies : [],
+      }))
+    );
+
+    setEditEducation(
+      (profile.education || []).map((edu: any) => ({
+        degree: edu.degree || '',
+        institution: edu.institution || '',
+        field_of_study: edu.field_of_study || '',
+        start_date: edu.start_date || '',
+        end_date: edu.end_date || '',
+        description: edu.description || '',
+      }))
+    );
+
     setIsEditing(true);
   };
 
   const handleCancelEdit = () => {
     setIsEditing(false);
+  };
+
+  const handleAddExperience = () => {
+    setEditExperience((prev) => [
+      ...prev,
+      {
+        title: '',
+        company: '',
+        location: '',
+        start_date: '',
+        end_date: 'Present',
+        description: '',
+        achievements: [],
+        technologies: [],
+      },
+    ]);
+  };
+
+  const handleUpdateExperience = (idx: number, updatedItem: ExperienceItem) => {
+    setEditExperience((prev) => prev.map((item, i) => (i === idx ? updatedItem : item)));
+  };
+
+  const handleRemoveExperience = (idx: number) => {
+    setEditExperience((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleAddEducation = () => {
+    setEditEducation((prev) => [
+      ...prev,
+      {
+        degree: '',
+        institution: '',
+        field_of_study: '',
+        start_date: '',
+        end_date: '',
+        description: '',
+      },
+    ]);
+  };
+
+  const handleUpdateEducation = (idx: number, updatedItem: EducationItem) => {
+    setEditEducation((prev) => prev.map((item, i) => (i === idx ? updatedItem : item)));
+  };
+
+  const handleRemoveEducation = (idx: number) => {
+    setEditEducation((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const handleSyncTruthVault = async () => {
@@ -130,6 +208,8 @@ export const CandidateProfilePage: React.FC = () => {
         summary: finalSummary,
         skills: skillsArray,
         target_titles: targetTitlesArray,
+        experience: editExperience,
+        education: editEducation,
       };
 
       if (isAuthenticated) {
@@ -393,6 +473,261 @@ export const CandidateProfilePage: React.FC = () => {
                 )}
               </div>
 
+              {/* Editable Work Experience Section */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-semibold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Briefcase className="w-4 h-4 text-sky-400" />
+                    Work Experience ({editExperience.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={handleAddExperience}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-sky-950/60 hover:bg-sky-900/60 border border-sky-500/30 text-sky-300 text-xs font-semibold transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Experience</span>
+                  </button>
+                </div>
+
+                {editExperience.length === 0 ? (
+                  <p className="text-slate-500 text-xs italic">No experience records added yet. Click 'Add Experience' above.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {editExperience.map((exp, idx) => {
+                      const achievementsText = Array.isArray(exp.achievements) && exp.achievements.length > 0
+                        ? exp.achievements.join('\n')
+                        : (exp.description || '');
+                      const techText = Array.isArray(exp.technologies) ? exp.technologies.join(', ') : '';
+
+                      return (
+                        <div key={idx} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+                          <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                            <span className="text-xs font-bold text-white">Experience #{idx + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveExperience(idx)}
+                              className="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-950/40 transition-colors"
+                              title="Delete experience"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                Job Title / Role
+                              </label>
+                              <input
+                                type="text"
+                                value={exp.title || ''}
+                                onChange={(e) => handleUpdateExperience(idx, { ...exp, title: e.target.value })}
+                                placeholder="e.g. Next.js Intern or Senior AI Engineer"
+                                className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                Company
+                              </label>
+                              <input
+                                type="text"
+                                value={exp.company || ''}
+                                onChange={(e) => handleUpdateExperience(idx, { ...exp, company: e.target.value })}
+                                placeholder="e.g. Trex InfoTech"
+                                className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                Location
+                              </label>
+                              <input
+                                type="text"
+                                value={exp.location || ''}
+                                onChange={(e) => handleUpdateExperience(idx, { ...exp, location: e.target.value })}
+                                placeholder="e.g. Mumbai, India or Remote"
+                                className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                Start Date
+                              </label>
+                              <input
+                                type="text"
+                                value={exp.start_date || ''}
+                                onChange={(e) => handleUpdateExperience(idx, { ...exp, start_date: e.target.value })}
+                                placeholder="e.g. Jul 2025"
+                                className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                                End Date
+                              </label>
+                              <input
+                                type="text"
+                                value={exp.end_date || ''}
+                                onChange={(e) => handleUpdateExperience(idx, { ...exp, end_date: e.target.value })}
+                                placeholder="e.g. Aug 2025 or Present"
+                                className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Responsibilities & Key Achievements <span className="text-slate-500 font-normal lowercase">(one bullet point per line)</span>
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={achievementsText}
+                              onChange={(e) => {
+                                const lines = e.target.value.split('\n');
+                                handleUpdateExperience(idx, {
+                                  ...exp,
+                                  description: e.target.value,
+                                  achievements: lines.filter((l) => l.trim().length > 0),
+                                });
+                              }}
+                              placeholder="Built full-stack web applications with Next.js and REST APIs&#10;Built API-driven automation pipelines handling end-to-end data flow..."
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg p-2.5 text-xs text-slate-200 focus:outline-none leading-relaxed resize-y font-sans"
+                            />
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Technologies & Tools <span className="text-slate-500 font-normal lowercase">(comma separated)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={techText}
+                              onChange={(e) => {
+                                const techs = e.target.value.split(',').map((t) => t.trim()).filter(Boolean);
+                                handleUpdateExperience(idx, { ...exp, technologies: techs });
+                              }}
+                              placeholder="Next.js, REST APIs, TypeScript..."
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-sky-500 rounded-lg px-2.5 py-1.5 text-xs text-sky-200 font-mono focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Editable Education Section */}
+              <div className="pt-4 border-t border-slate-800 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <GraduationCap className="w-4 h-4 text-emerald-400" />
+                    Education ({editEducation.length})
+                  </h4>
+                  <button
+                    type="button"
+                    onClick={handleAddEducation}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Education</span>
+                  </button>
+                </div>
+
+                {editEducation.length === 0 ? (
+                  <p className="text-slate-500 text-xs italic">No education records added yet. Click 'Add Education' above.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {editEducation.map((edu, idx) => (
+                      <div key={idx} className="p-4 bg-slate-950 border border-slate-800 rounded-xl space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                          <span className="text-xs font-bold text-white">Education #{idx + 1}</span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveEducation(idx)}
+                            className="text-rose-400 hover:text-rose-300 p-1 rounded hover:bg-rose-950/40 transition-colors"
+                            title="Delete education"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Degree / Certificate
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.degree || ''}
+                              onChange={(e) => handleUpdateEducation(idx, { ...edu, degree: e.target.value })}
+                              placeholder="e.g. Bachelor of Computer Science"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Field of Study / Major
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.field_of_study || ''}
+                              onChange={(e) => handleUpdateEducation(idx, { ...edu, field_of_study: e.target.value })}
+                              placeholder="e.g. AIML or Computer Science"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Institution / University
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.institution || ''}
+                              onChange={(e) => handleUpdateEducation(idx, { ...edu, institution: e.target.value })}
+                              placeholder="e.g. Viva Institute of Technology"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              Start Date
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.start_date || ''}
+                              onChange={(e) => handleUpdateEducation(idx, { ...edu, start_date: e.target.value })}
+                              placeholder="e.g. Jan 2023"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
+                              End Date
+                            </label>
+                            <input
+                              type="text"
+                              value={edu.end_date || ''}
+                              onChange={(e) => handleUpdateEducation(idx, { ...edu, end_date: e.target.value })}
+                              placeholder="e.g. Dec 2026 or Graduated"
+                              className="w-full bg-slate-900 border border-slate-700 focus:border-emerald-500 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* Bottom Actions */}
               <div className="pt-4 border-t border-slate-800 flex items-center justify-end gap-2.5">
                 <button
@@ -412,26 +747,6 @@ export const CandidateProfilePage: React.FC = () => {
                   <span>{isSaving ? 'Saving...' : 'Save Profile'}</span>
                 </button>
               </div>
-
-              {/* Verified Truth Vault References while editing */}
-              {profile.experience && profile.experience.length > 0 && (
-                <div className="pt-4 border-t border-slate-800/80">
-                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                    <Briefcase className="w-4 h-4 text-sky-400" />
-                    Verified Work Experience Reference ({profile.experience.length})
-                  </h4>
-                  <div className="space-y-2 opacity-75">
-                    {profile.experience.map((exp: any, idx: number) => (
-                      <div key={idx} className="p-3 bg-slate-950/40 rounded-lg border border-slate-800/60">
-                        <div className="flex items-center justify-between font-bold text-white text-xs">
-                          <span>{exp.title || 'Role'} {exp.company && <span className="text-slate-400 font-normal">at {exp.company}</span>}</span>
-                          <span className="text-[10px] font-mono text-slate-500">{exp.start_date || ''} - {exp.end_date || ''}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
             </form>
           </Card>
         ) : (
@@ -529,16 +844,50 @@ export const CandidateProfilePage: React.FC = () => {
                     Verified Work Experience ({profile.experience.length})
                   </h4>
                   <div className="space-y-3">
-                    {profile.experience.map((exp: any, idx: number) => (
-                      <div key={idx} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800">
-                        <div className="flex items-center justify-between font-bold text-white text-xs mb-1">
-                          <span>{exp.title || 'Role'} {exp.company && <span className="text-slate-400 font-normal">at {exp.company}</span>}</span>
-                          <span className="text-[11px] font-mono text-slate-500">{exp.start_date || ''} - {exp.end_date || ''}</span>
+                    {profile.experience.map((exp: any, idx: number) => {
+                      const achievementsList: string[] = Array.isArray(exp.achievements) && exp.achievements.length > 0
+                        ? exp.achievements
+                        : exp.description ? [exp.description] : [];
+                      const techList: string[] = Array.isArray(exp.technologies) ? exp.technologies : [];
+
+                      return (
+                        <div key={idx} className="p-4 bg-slate-950/60 rounded-xl border border-slate-800 space-y-2">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div>
+                              <span className="font-bold text-white text-xs">{exp.title || 'Role'}</span>
+                              {exp.company && <span className="text-sky-300 font-medium text-xs"> at {exp.company}</span>}
+                              {exp.location && <span className="text-[11px] text-slate-500"> • {exp.location}</span>}
+                            </div>
+                            <span className="text-[11px] font-mono text-slate-400">
+                              {exp.start_date || ''}{exp.start_date && exp.end_date ? ' - ' : ''}{exp.end_date || ''}
+                            </span>
+                          </div>
+
+                          {/* Achievements Bullet Points */}
+                          {achievementsList.length > 0 && (
+                            <ul className="space-y-1.5 pt-1">
+                              {achievementsList.map((ach: string, aIdx: number) => (
+                                <li key={aIdx} className="text-slate-300 text-xs leading-relaxed flex items-start gap-2">
+                                  <span className="text-sky-400 mt-0.5 select-none font-bold">•</span>
+                                  <span>{ach}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+
+                          {/* Technologies Chips */}
+                          {techList.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {techList.map((tech: string, tIdx: number) => (
+                                <span key={tIdx} className="px-2 py-0.5 rounded bg-sky-950/40 border border-sky-800/40 text-sky-300 text-[10px] font-mono">
+                                  {tech}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {exp.location && <p className="text-[11px] text-slate-500 mb-2">{exp.location}</p>}
-                        {exp.description && <p className="text-slate-300 text-xs mb-2 leading-relaxed">{exp.description}</p>}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -556,7 +905,9 @@ export const CandidateProfilePage: React.FC = () => {
                           <span className="font-bold text-white">{edu.degree || 'Degree'} {edu.field_of_study && `in ${edu.field_of_study}`}</span>
                           {edu.institution && <p className="text-slate-400 text-[11px]">{edu.institution}</p>}
                         </div>
-                        <span className="text-[10px] font-mono text-slate-500">{edu.start_date || ''} - {edu.end_date || ''}</span>
+                        <span className="text-[10px] font-mono text-slate-500">
+                          {edu.start_date || ''}{edu.start_date && edu.end_date ? ' - ' : ''}{edu.end_date || ''}
+                        </span>
                       </div>
                     ))}
                   </div>
