@@ -1,79 +1,72 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Bot, FileText, User, Home, Briefcase, Kanban, Key, LogOut } from 'lucide-react';
+import { FileText, User, Briefcase, LayoutGrid, LogOut, Key } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { AuthModal } from '../auth/AuthModal';
+
+const navItems = [
+  { path: '/profile', label: 'Profile', icon: <User className="w-3.5 h-3.5" /> },
+  { path: '/resume-review', label: 'Resume', icon: <FileText className="w-3.5 h-3.5" /> },
+  { path: '/jobs', label: 'Jobs', icon: <Briefcase className="w-3.5 h-3.5" /> },
+  { path: '/applications', label: 'Applications', icon: <LayoutGrid className="w-3.5 h-3.5" /> },
+];
 
 export const Header: React.FC = () => {
   const location = useLocation();
   const { user, logout } = useAuth();
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
-  const navItems = [
-    { path: '/', label: 'Overview', icon: <Home className="w-4 h-4" /> },
-    { path: '/profile', label: 'Candidate Profile', icon: <User className="w-4 h-4" /> },
-    { path: '/resume-review', label: 'Resume Review', icon: <FileText className="w-4 h-4" /> },
-    { path: '/jobs', label: 'Job Discovery & Matching', icon: <Briefcase className="w-4 h-4" /> },
-    { path: '/applications', label: 'Kanban Board', icon: <Kanban className="w-4 h-4" /> },
-  ];
-
   return (
     <>
-      <header className="border-b border-slate-800 bg-slate-950/80 backdrop-blur sticky top-0 z-50">
-        <div className="max-w-6xl mx-auto px-4 py-3.5 flex flex-col md:flex-row items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-3 group">
-            <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20 group-hover:border-sky-500/40 transition-colors">
-              <Bot className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-white group-hover:text-sky-300 transition-colors">
-                AI Job Hunter Co-Pilot
-              </h1>
-              <p className="text-xs text-slate-400 hidden sm:block">
-                Human-in-the-Loop Verified Candidate Workflow
-              </p>
-            </div>
+      <header className="border-b border-slate-200 bg-white sticky top-0 z-50 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 h-12 flex items-center justify-between gap-6">
+
+          {/* Brand */}
+          <Link
+            to="/"
+            className="text-[15px] font-bold tracking-tight text-slate-800 hover:text-blue-600 transition-colors shrink-0"
+          >
+            HireIQ
           </Link>
 
-          <div className="flex flex-wrap items-center gap-3">
-            <nav className="flex items-center gap-1 bg-slate-900/80 border border-slate-800 p-1 rounded-xl">
-              {navItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                      isActive
-                        ? 'bg-sky-500/15 text-sky-300 border border-sky-500/30'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
-                    }`}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </nav>
+          {/* Nav */}
+          <nav className="flex items-center gap-0.5">
+            {navItems.map((item) => {
+              const isActive =
+                location.pathname === item.path ||
+                (item.path !== '/' && location.pathname.startsWith(item.path));
+              return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors ${
+                    isActive
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100'
+                  }`}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-            {/* Tenant / Auth status indicator */}
+          {/* Auth */}
+          <div className="flex items-center gap-2 shrink-0">
             {user ? (
-              <div className="flex items-center gap-2 bg-slate-900/90 border border-slate-800 p-1 pl-2.5 rounded-xl shadow-sm">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  <div className="text-left">
-                    <div className="text-[11px] font-bold text-white leading-tight truncate max-w-[110px]" title={user.email}>
-                      {user.full_name || user.email}
-                    </div>
-                    <div className="text-[9px] font-mono text-emerald-400">
-                      Tenant Scoped
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-center gap-2 pl-2 pr-1 py-1 bg-slate-50 border border-slate-200 rounded-lg">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                <span
+                  className="text-[12px] font-medium text-slate-700 truncate max-w-[120px]"
+                  title={user.email}
+                >
+                  {user.full_name || user.email}
+                </span>
                 <button
                   onClick={logout}
-                  title="Sign Out (Clear Session)"
-                  className="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-rose-400 rounded-lg transition-colors text-xs"
+                  title="Sign out"
+                  className="p-1 hover:bg-slate-200 text-slate-400 hover:text-slate-700 rounded transition-colors"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -81,7 +74,7 @@ export const Header: React.FC = () => {
             ) : (
               <button
                 onClick={() => setIsAuthModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-semibold shadow-lg shadow-sky-600/20 transition-all"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[13px] font-medium transition-colors"
               >
                 <Key className="w-3.5 h-3.5" />
                 <span>Sign In</span>

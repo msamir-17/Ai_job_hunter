@@ -18,37 +18,37 @@ export const ConfirmationBar: React.FC<ConfirmationBarProps> = ({
   onResetDraft,
 }) => {
   return (
-    <div className="sticky bottom-6 z-40 p-5 bg-slate-900/95 border border-sky-500/30 rounded-2xl backdrop-blur-md shadow-2xl shadow-slate-950">
+    <div className="sticky bottom-6 z-40 p-4 bg-white/95 border border-slate-300 rounded-xl backdrop-blur-md shadow-lg">
       {error && (
-        <Alert variant="error" className="mb-4" onDismiss={onErrorClear}>
+        <Alert variant="error" className="mb-3" onDismiss={onErrorClear}>
           {error}
         </Alert>
       )}
 
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-lg border border-emerald-500/20 shrink-0 mt-0.5">
-            <AlertTriangle className="w-5 h-5 text-amber-400" />
+        <div className="flex items-start gap-2.5">
+          <div className="p-1.5 bg-amber-50 text-amber-600 rounded-md border border-amber-200 shrink-0 mt-0.5">
+            <AlertTriangle className="w-4 h-4" />
           </div>
           <div>
-            <h4 className="text-xs font-bold text-white uppercase tracking-wider mb-0.5">
-              Human-in-the-Loop Explicit Confirmation
+            <h4 className="text-xs font-semibold text-slate-800 uppercase tracking-wide">
+              Human Verification Required
             </h4>
-            <p className="text-xs text-slate-300">
-              Only confirm information you have reviewed and verified. Confirmed information will be merged into your verified candidate profile.
+            <p className="text-xs text-slate-500">
+              Only confirm verified information. Confirmed facts will merge into your candidate profile.
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0 self-end md:self-auto">
+        <div className="flex items-center gap-2 shrink-0 self-end md:self-auto">
           {onResetDraft && (
             <button
               type="button"
               onClick={onResetDraft}
               disabled={isSubmitting}
-              className="px-4 py-2 text-xs font-semibold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition-colors disabled:opacity-50"
+              className="px-3.5 py-2 text-xs font-medium rounded-lg bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 transition-colors disabled:opacity-50"
             >
-              Discard / Reset
+              Discard Draft
             </button>
           )}
 
@@ -56,17 +56,17 @@ export const ConfirmationBar: React.FC<ConfirmationBarProps> = ({
             type="button"
             onClick={onConfirm}
             disabled={isSubmitting}
-            className="px-6 py-2.5 text-xs font-bold rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white transition-all shadow-lg shadow-emerald-950 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
           >
             {isSubmitting ? (
               <>
-                <RefreshCw className="w-4 h-4 animate-spin" />
-                Merging into Profile...
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>Saving to Profile...</span>
               </>
             ) : (
               <>
-                <ShieldCheck className="w-4 h-4 text-emerald-200" />
-                Confirm & Save to Profile
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Confirm & Save to Profile</span>
               </>
             )}
           </button>

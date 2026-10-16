@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { UploadCloud, FileText, X, AlertCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { UploadCloud, FileText, X, AlertCircle, RefreshCw } from 'lucide-react';
 import { Card } from '../ui/Card';
 import { Alert } from '../ui/Alert';
 
@@ -70,8 +70,7 @@ export const ResumeUploadSection: React.FC<ResumeUploadSectionProps> = ({
     setDragOver(true);
   };
 
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
+  const handleDragLeave = () => {
     setDragOver(false);
   };
 
@@ -86,7 +85,7 @@ export const ResumeUploadSection: React.FC<ResumeUploadSectionProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedFile || !candidateProfileId || isUploading) return;
+    if (!selectedFile) return;
     await onUploadAndExtract(selectedFile);
   };
 
@@ -97,15 +96,15 @@ export const ResumeUploadSection: React.FC<ResumeUploadSectionProps> = ({
   };
 
   return (
-    <Card className="mb-8">
+    <Card className="mb-6">
       <div className="flex items-center gap-3 mb-4">
-        <div className="p-2.5 bg-indigo-500/10 text-indigo-400 rounded-lg border border-indigo-500/20">
+        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-200">
           <UploadCloud className="w-5 h-5" />
         </div>
         <div>
-          <h3 className="text-base font-semibold text-white">Upload Resume Document</h3>
-          <p className="text-xs text-slate-400">
-            Upload your resume (.pdf or .docx) to trigger AI extraction into an unverified draft
+          <h3 className="text-sm font-semibold text-slate-900">Upload Resume</h3>
+          <p className="text-xs text-slate-500">
+            Upload your resume (.pdf or .docx) to extract facts into a draft
           </p>
         </div>
       </div>
@@ -125,10 +124,10 @@ export const ResumeUploadSection: React.FC<ResumeUploadSectionProps> = ({
             onClick={() => candidateProfileId && fileInputRef.current?.click()}
             className={`border-2 border-dashed rounded-xl p-8 text-center transition-all cursor-pointer ${
               !candidateProfileId
-                ? 'border-slate-800 bg-slate-950/30 opacity-60 cursor-not-allowed'
+                ? 'border-slate-200 bg-slate-50 opacity-60 cursor-not-allowed'
                 : dragOver
-                ? 'border-sky-500 bg-sky-500/10'
-                : 'border-slate-800 bg-slate-950/50 hover:border-slate-700 hover:bg-slate-900/50'
+                ? 'border-blue-500 bg-blue-50/50'
+                : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100/50'
             }`}
           >
             <input
@@ -139,72 +138,65 @@ export const ResumeUploadSection: React.FC<ResumeUploadSectionProps> = ({
               className="hidden"
               disabled={!candidateProfileId || isUploading}
             />
-            <UploadCloud className="w-10 h-10 text-slate-500 mx-auto mb-3" />
-            <h4 className="text-sm font-medium text-slate-200 mb-1">
-              Drag & Drop your resume here, or <span className="text-sky-400 underline">Browse Files</span>
+            <UploadCloud className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+            <h4 className="text-xs font-semibold text-slate-800 mb-0.5">
+              Drag and drop your resume, or <span className="text-blue-600 underline">Browse files</span>
             </h4>
-            <p className="text-xs text-slate-500">
-              Supported formats: PDF (.pdf) and Word (.docx) • Max size: 5 MB
+            <p className="text-[11px] text-slate-500">
+              PDF or DOCX • Max size 5 MB
             </p>
             {!candidateProfileId && (
-              <p className="text-xs text-amber-400/90 font-medium mt-3 flex items-center justify-center gap-1">
-                <AlertCircle className="w-3.5 h-3.5" /> Select or create a Candidate Profile above to enable upload
+              <p className="text-xs text-amber-700 font-medium mt-2 flex items-center justify-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" /> Select a candidate profile above to enable upload
               </p>
             )}
           </div>
         ) : (
-          <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-xl">
+          <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 overflow-hidden">
-                <div className="p-3 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20 shrink-0">
-                  <FileText className="w-6 h-6" />
+                <div className="p-2.5 bg-blue-50 text-blue-600 rounded-lg border border-blue-200 shrink-0">
+                  <FileText className="w-5 h-5" />
                 </div>
                 <div className="min-w-0">
-                  <h4 className="text-xs font-semibold text-slate-200 truncate">{selectedFile.name}</h4>
-                  <div className="flex items-center gap-3 text-[11px] text-slate-400 mt-0.5">
+                  <h4 className="text-xs font-semibold text-slate-900 truncate">{selectedFile.name}</h4>
+                  <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                     <span>Size: {formatFileSize(selectedFile.size)}</span>
                     <span>•</span>
-                    <span className="uppercase text-sky-400 font-mono">
+                    <span className="uppercase text-slate-600 font-mono">
                       {selectedFile.name.split('.').pop()}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleRemoveFile}
-                  disabled={isUploading}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-900 transition-colors disabled:opacity-50"
-                  title="Remove file"
-                  aria-label="Remove selected file"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                disabled={isUploading}
+                className="p-1 rounded text-slate-400 hover:text-red-600 hover:bg-white transition-colors disabled:opacity-50"
+                title="Remove file"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-800/80 flex items-center justify-between">
-              <p className="text-[11px] text-slate-400 flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-                Ready to extract structured candidate draft JSON
+            <div className="mt-3 pt-3 border-t border-slate-200 flex items-center justify-between">
+              <p className="text-[11px] text-slate-500">
+                Ready to extract structured candidate facts
               </p>
               <button
                 type="submit"
                 disabled={!candidateProfileId || isUploading}
-                className="px-5 py-2 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-500 text-white transition-all shadow-md shadow-sky-950 disabled:opacity-50 flex items-center gap-2"
+                className="px-4 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
               >
                 {isUploading ? (
                   <>
-                    <RefreshCw className="w-4 h-4 animate-spin" />
-                    Uploading & Extracting...
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Extracting...</span>
                   </>
                 ) : (
-                  <>
-                    <Sparkles className="w-4 h-4" />
-                    Upload & Trigger AI Extraction
-                  </>
+                  <span>Upload & Extract</span>
                 )}
               </button>
             </div>

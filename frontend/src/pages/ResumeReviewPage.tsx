@@ -15,7 +15,7 @@ import { TargetTitlesEditor } from '../components/resume/TargetTitlesEditor';
 import { ConfirmationBar } from '../components/resume/ConfirmationBar';
 import { ConfirmationSuccessView } from '../components/resume/ConfirmationSuccessView';
 import { Alert } from '../components/ui/Alert';
-import { RefreshCw, FileText } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
 
 export const ResumeReviewPage: React.FC = () => {
   const [currentProfile, setCurrentProfile] = useState<CandidateProfileResponse | null>(null);
@@ -139,20 +139,13 @@ export const ResumeReviewPage: React.FC = () => {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 pb-24">
       {/* Title Header */}
-      <div className="border-b border-slate-800 pb-6 mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20">
-            <FileText className="w-6 h-6" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white">
-              Resume Review & Confirmation UI
-            </h1>
-            <p className="text-xs text-slate-400">
-              Human-in-the-Loop AI extraction draft review and Candidate Profile confirmation
-            </p>
-          </div>
-        </div>
+      <div className="border-b border-slate-200 pb-5 mb-6">
+        <h1 className="text-xl font-bold tracking-tight text-slate-900">
+          Resume Review
+        </h1>
+        <p className="text-xs text-slate-500 mt-0.5">
+          Upload resume documents to extract and verify candidate facts.
+        </p>
       </div>
 
       {/* Candidate Profile Context Selector */}

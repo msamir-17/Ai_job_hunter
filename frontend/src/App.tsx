@@ -16,7 +16,7 @@ const App: React.FC = () => {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <Router>
-          <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-sky-500/30 selection:text-sky-200">
+          <div className="min-h-screen bg-[#f7f8fa] text-[#1a1d23] flex flex-col font-sans selection:bg-blue-100 selection:text-blue-800">
             <Header />
             <main className="flex-1">
             <Routes>

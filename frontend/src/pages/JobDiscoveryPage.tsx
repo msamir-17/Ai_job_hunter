@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Briefcase,
   Search,
-  Sparkles,
   RotateCw,
   ChevronRight,
   BookmarkPlus,
@@ -24,7 +23,7 @@ import { CandidateProfileResponse } from '../types/candidateProfile';
 import { PipelineRunResponse } from '../types/matching';
 import { FeedbackResponse } from '../types/feedback';
 import { listJobs, ingestJobs } from '../api/jobs';
-import { listCandidateProfiles, getActiveCandidateProfile } from '../api/candidateProfile';
+import { getActiveCandidateProfile } from '../api/candidateProfile';
 import {
   runMatchingPipeline,
   getCandidateJobMatches,
@@ -80,61 +79,48 @@ export const JobDiscoveryPage: React.FC = () => {
   const [matchesByJobId, setMatchesByJobId] = useState<Record<string, PipelineRunResponse>>({});
   const [analyzingJobIds, setAnalyzingJobIds] = useState<Record<string, boolean>>({});
 
-  // Applications state
-  const [trackedJobIds, setTrackedJobIds] = useState<Record<string, string>>({}); // jobId -> applicationId
+  // Applications tracking state
+  const [trackedJobIds, setTrackedJobIds] = useState<Record<string, string>>({});
   const [isTrackingJobId, setIsTrackingJobId] = useState<Record<string, boolean>>({});
 
-  // Discard / Feedback state
+  // Discard / Rocchio Feedback state
   const [discardsByJobId, setDiscardsByJobId] = useState<Record<string, FeedbackResponse>>({});
-  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState<boolean>(false);
   const [selectedJobForDiscard, setSelectedJobForDiscard] = useState<Job | null>(null);
+  const [isDiscardModalOpen, setIsDiscardModalOpen] = useState<boolean>(false);
   const [isSubmittingDiscard, setIsSubmittingDiscard] = useState<boolean>(false);
-  const [hideDiscarded, setHideDiscarded] = useState<boolean>(false);
   const [feedbackAlert, setFeedbackAlert] = useState<string | null>(null);
 
-  // Filters & Search
+  // Filter states
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [locationQuery, setLocationQuery] = useState<string>('');
   const [workType, setWorkType] = useState<'all' | 'remote' | 'onsite'>('all');
   const [employmentType, setEmploymentType] = useState<'all' | 'full-time' | 'contract' | 'part-time'>('all');
   const [experienceLevel, setExperienceLevel] = useState<'all' | 'entry' | 'mid' | 'senior'>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [hideDiscarded, setHideDiscarded] = useState<boolean>(false);
 
-  // Active Modals
+  // Modals state
   const [selectedJobForModal, setSelectedJobForModal] = useState<Job | null>(null);
   const [isMatchModalOpen, setIsMatchModalOpen] = useState<boolean>(false);
   const [isTailorModalOpen, setIsTailorModalOpen] = useState<boolean>(false);
 
-  // Fetch initial profile & jobs
   useEffect(() => {
-    loadProfileAndInitialData();
+    loadCandidateProfile();
+    loadJobs();
   }, []);
 
-  const loadProfileAndInitialData = async () => {
+  const loadCandidateProfile = async () => {
     setIsLoadingProfile(true);
     try {
-      let p: CandidateProfileResponse | null = null;
-      try {
-        p = await getActiveCandidateProfile();
-      } catch (err) {
-        const profiles = await listCandidateProfiles(1);
-        p = profiles.length > 0 ? profiles[0] : null;
-      }
+      const p = await getActiveCandidateProfile();
       setProfile(p);
-
-      // Load jobs
-      await loadJobs();
-
-      // If profile exists, load existing matches, tracked applications, and feedback
       if (p) {
-        loadStoredMatches(p.id);
+        loadExistingMatches(p.id);
         loadUserApplications(p.user_id);
         loadUserFeedback(p.id);
-      } else {
-        loadUserFeedback();
       }
     } catch (err: any) {
-      console.error('Failed to load profile/jobs:', err);
+      console.warn('Could not load active profile:', err.message);
     } finally {
       setIsLoadingProfile(false);
     }
@@ -144,48 +130,47 @@ export const JobDiscoveryPage: React.FC = () => {
     setIsLoadingJobs(true);
     setJobError(null);
     try {
-      const jobList = await listJobs({ limit: 100 });
-      setJobs(jobList);
+      const data = await listJobs({ limit: 100 });
+      setJobs(data);
     } catch (err: any) {
-      setJobError(err.message || 'Failed to load jobs');
+      setJobError(err.message || 'Failed to fetch jobs.');
     } finally {
       setIsLoadingJobs(false);
     }
   };
 
-  const loadStoredMatches = async (candidateProfileId: string) => {
+  const loadExistingMatches = async (candidateId: string) => {
     try {
-      const stored = await getCandidateJobMatches(candidateProfileId);
+      const matches = await getCandidateJobMatches(candidateId);
       const map: Record<string, PipelineRunResponse> = {};
-      stored.forEach((m) => {
+      matches.forEach((m) => {
         map[m.job_id] = {
           id: m.id,
           candidate_profile_id: m.candidate_profile_id,
           job_id: m.job_id,
           passed_deterministic: m.passed_deterministic,
-          deterministic_status: m.passed_deterministic ? 'shortlisted' : 'rejected',
           vector_score: m.vector_score,
           llm_score: m.llm_score,
-          matched_skills: m.matched_skills,
-          missing_skills: m.missing_skills,
+          matched_skills: m.matched_skills || [],
+          missing_skills: m.missing_skills || [],
           analysis_summary: m.analysis_summary,
           overall_status: m.status,
           current_stage: 'completed',
         };
       });
-      setMatchesByJobId((prev) => ({ ...prev, ...map }));
+      setMatchesByJobId(map);
     } catch (err) {
-      console.error('Could not load stored matches:', err);
+      console.error('Could not load existing matches:', err);
     }
   };
 
-  const loadUserApplications = async (userId: string) => {
+  const loadUserApplications = async (userId?: string) => {
     try {
       const apps = await listApplications(userId);
       const map: Record<string, string> = {};
-      apps.forEach((a) => {
-        if (a.job_id) {
-          map[a.job_id] = a.id;
+      apps.forEach((app) => {
+        if (app.job_id) {
+          map[app.job_id] = app.id;
         }
       });
       setTrackedJobIds(map);
@@ -194,9 +179,9 @@ export const JobDiscoveryPage: React.FC = () => {
     }
   };
 
-  const loadUserFeedback = async (candidateProfileId?: string) => {
+  const loadUserFeedback = async (candidateId: string) => {
     try {
-      const list = await listFeedbackApi(candidateProfileId);
+      const list = await listFeedbackApi(candidateId);
       const map: Record<string, FeedbackResponse> = {};
       list.forEach((f) => {
         if (f.action === 'discard') {
@@ -231,7 +216,7 @@ export const JobDiscoveryPage: React.FC = () => {
         [selectedJobForDiscard.id]: res,
       }));
       setFeedbackAlert(
-        `Job "${selectedJobForDiscard.title}" marked as discarded (${reasonCode.replace(/_/g, ' ')}). Rocchio recommendation vector updated.`
+        `Job "${selectedJobForDiscard.title}" marked as discarded.`
       );
       setIsDiscardModalOpen(false);
       setSelectedJobForDiscard(null);
@@ -252,7 +237,7 @@ export const JobDiscoveryPage: React.FC = () => {
         delete copy[jobId];
         return copy;
       });
-      setFeedbackAlert('Discard undone. Job restored to recommendations.');
+      setFeedbackAlert('Discard undone. Job restored.');
     } catch (err: any) {
       setFeedbackAlert(`Failed to undo discard: ${err.message}`);
     }
@@ -264,23 +249,16 @@ export const JobDiscoveryPage: React.FC = () => {
     let totalIngested = 0;
 
     try {
-      // 1. Ingest Adzuna jobs if credentials present
       try {
         const resAdzuna = await ingestJobs({ source: 'adzuna', limit: 15 });
         totalIngested += resAdzuna.new_ingested;
-      } catch (err) {
-        // Adzuna API optional fallback
-      }
+      } catch (err) {}
 
-      // 2. Ingest Remotive jobs
       try {
         const resRemotive = await ingestJobs({ source: 'remotive', limit: 15 });
         totalIngested += resRemotive.new_ingested;
-      } catch (err) {
-        // Remotive API optional fallback
-      }
+      } catch (err) {}
 
-      // 3. Ensure sample jobs exist if database empty
       if (totalIngested === 0) {
         try {
           await ingestJobs({ source: 'manual' });
@@ -288,7 +266,7 @@ export const JobDiscoveryPage: React.FC = () => {
       }
 
       await loadJobs();
-      setIngestionBanner(`Successfully loaded latest job listings into your database!`);
+      setIngestionBanner(`Successfully loaded latest job listings.`);
     } catch (err: any) {
       setIngestionBanner(`Failed to load jobs: ${err.message}`);
     } finally {
@@ -298,13 +276,12 @@ export const JobDiscoveryPage: React.FC = () => {
 
   const handleRunPipeline = async (job: Job) => {
     if (!profile) return;
-
     setAnalyzingJobIds((prev) => ({ ...prev, [job.id]: true }));
     try {
       const result = await runMatchingPipeline(profile.id, job.id);
       setMatchesByJobId((prev) => ({ ...prev, [job.id]: result }));
     } catch (err: any) {
-      console.error('Pipeline error:', err);
+      console.error('Failed to run match pipeline:', err);
     } finally {
       setAnalyzingJobIds((prev) => ({ ...prev, [job.id]: false }));
     }
@@ -312,41 +289,24 @@ export const JobDiscoveryPage: React.FC = () => {
 
   const handleTrackApplication = async (job: Job) => {
     if (!profile) return;
-
     setIsTrackingJobId((prev) => ({ ...prev, [job.id]: true }));
     try {
-      // Find or trigger a match record ID
-      const existingMatch = matchesByJobId[job.id];
-      let jobMatchId: string | null = existingMatch?.id || null;
-
-      if (!jobMatchId) {
-        // Look up stored matches from backend DB
-        const stored = await getCandidateJobMatches(profile.id);
-        const found = stored.find((m) => m.job_id === job.id);
-        if (found) jobMatchId = found.id;
+      let match = matchesByJobId[job.id];
+      if (!match || !match.id) {
+        match = await runMatchingPipeline(profile.id, job.id);
+        setMatchesByJobId((prev) => ({ ...prev, [job.id]: match }));
       }
-
-      if (!jobMatchId) {
-        // Run pipeline first to ensure JobMatch exists in DB
-        const res = await runMatchingPipeline(profile.id, job.id);
-        setMatchesByJobId((prev) => ({ ...prev, [job.id]: res }));
-        jobMatchId = res.id || null;
-
-        if (!jobMatchId) {
-          const stored = await getCandidateJobMatches(profile.id);
-          const found = stored.find((m) => m.job_id === job.id);
-          if (found) jobMatchId = found.id;
-        }
+      if (!match.id) {
+        throw new Error('Unable to create job match record for application.');
       }
-
-      if (jobMatchId) {
-        const app = await createApplication({
-          user_id: profile.user_id,
-          job_match_id: jobMatchId,
-          status: 'saved',
-        });
-        setTrackedJobIds((prev) => ({ ...prev, [job.id]: app.id }));
-      }
+      const scoreNotes = match.llm_score != null ? `Match score: ${Math.round(match.llm_score)}%` : undefined;
+      const newApp = await createApplication({
+        job_match_id: match.id,
+        user_id: profile.user_id,
+        status: 'saved',
+        notes: scoreNotes,
+      });
+      setTrackedJobIds((prev) => ({ ...prev, [job.id]: newApp.id }));
     } catch (err: any) {
       console.error('Failed to track application:', err);
     } finally {
@@ -357,18 +317,11 @@ export const JobDiscoveryPage: React.FC = () => {
   // Filtered jobs
   const filteredJobs = (jobs || []).filter((job) => {
     if (!job) return false;
-
-    // Discard filter
     if (hideDiscarded && discardsByJobId[job.id]) return false;
-
-    // Work type filter
     if (workType === 'remote' && !job.is_remote) return false;
     if (workType === 'onsite' && job.is_remote) return false;
-
-    // Source filter
     if (sourceFilter !== 'all' && (job.source || '').toLowerCase() !== sourceFilter.toLowerCase()) return false;
 
-    // Experience Level filter
     if (experienceLevel !== 'all') {
       const cat = getJobExperienceCategory(job);
       if (experienceLevel === 'entry' && cat !== 'entry') return false;
@@ -376,13 +329,11 @@ export const JobDiscoveryPage: React.FC = () => {
       if (experienceLevel === 'senior' && cat !== 'senior') return false;
     }
 
-    // Location query filter
     if (locationQuery.trim()) {
       const loc = (job.location || '').toLowerCase();
       if (!loc.includes(locationQuery.toLowerCase().trim())) return false;
     }
 
-    // Employment / Contract type filter
     if (employmentType !== 'all') {
       const fullText = `${job.title} ${job.description} ${(job.requirements || []).join(' ')}`.toLowerCase();
       if (employmentType === 'contract' && !fullText.includes('contract') && !fullText.includes('freelance')) return false;
@@ -390,7 +341,6 @@ export const JobDiscoveryPage: React.FC = () => {
       if (employmentType === 'part-time' && !fullText.includes('part-time') && !fullText.includes('part time')) return false;
     }
 
-    // General Search query
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchTitle = (job.title || '').toLowerCase().includes(query);
@@ -422,20 +372,15 @@ export const JobDiscoveryPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8 space-y-8 animate-fade-in">
+    <div className="max-w-6xl mx-auto px-4 py-8 space-y-6">
       {/* Page Header */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-800 pb-6">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 border-b border-slate-200 pb-5">
         <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-sky-500/10 text-sky-400 rounded-lg border border-sky-500/20">
-              <Briefcase className="w-6 h-6" />
-            </div>
-            <h1 className="text-2xl font-extrabold tracking-tight text-white">
-              Job Discovery & 3-Tier Matcher
-            </h1>
-          </div>
-          <p className="text-xs text-slate-400 mt-1">
-            Ingest normalized job listings, execute deterministic filters + pgvector + LLM reasoning, and tailor grounded application documents.
+          <h1 className="text-xl font-bold tracking-tight text-slate-900">
+            Jobs
+          </h1>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Discover opportunities, analyze skill matches, and tailor application materials.
           </p>
         </div>
 
@@ -444,16 +389,16 @@ export const JobDiscoveryPage: React.FC = () => {
           <button
             onClick={handleLoadJobs}
             disabled={isIngesting || isLoadingJobs}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold bg-sky-600 hover:bg-sky-500 text-white transition-all disabled:opacity-50 shadow-lg shadow-sky-600/20"
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50"
             title="Load live jobs from connected API sources"
           >
-            <Download className={`w-4 h-4 ${isIngesting ? 'animate-spin' : ''}`} />
-            {isIngesting ? 'Loading Jobs...' : 'Load Jobs'}
+            <Download className={`w-3.5 h-3.5 ${isIngesting ? 'animate-spin' : ''}`} />
+            {isIngesting ? 'Loading...' : 'Load Jobs'}
           </button>
           <button
             onClick={loadJobs}
             disabled={isLoadingJobs}
-            className="p-2 rounded-xl text-slate-400 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 transition-colors"
+            className="p-1.5 rounded-lg text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 transition-colors"
             title="Refresh current jobs list"
           >
             <RotateCw className={`w-4 h-4 ${isLoadingJobs ? 'animate-spin' : ''}`} />
@@ -466,11 +411,11 @@ export const JobDiscoveryPage: React.FC = () => {
 
       {/* Feedback Status Alert */}
       {feedbackAlert && (
-        <div className="p-3 bg-rose-950/30 border border-rose-500/30 rounded-xl text-xs text-rose-200 flex items-center justify-between animate-fade-in">
+        <div className="p-3 bg-slate-100 border border-slate-200 rounded-lg text-xs text-slate-700 flex items-center justify-between">
           <span>{feedbackAlert}</span>
           <button
             onClick={() => setFeedbackAlert(null)}
-            className="text-slate-400 hover:text-white p-1"
+            className="text-slate-400 hover:text-slate-600 p-0.5"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -479,11 +424,11 @@ export const JobDiscoveryPage: React.FC = () => {
 
       {/* Ingestion Status Banner */}
       {ingestionBanner && (
-        <div className="p-3 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-xs text-indigo-200 flex items-center justify-between">
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-xs text-blue-800 flex items-center justify-between">
           <span>{ingestionBanner}</span>
           <button
             onClick={() => setIngestionBanner(null)}
-            className="text-slate-400 hover:text-white p-1"
+            className="text-slate-400 hover:text-slate-600 p-0.5"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -492,236 +437,210 @@ export const JobDiscoveryPage: React.FC = () => {
 
       {/* Candidate Profile Context Banner */}
       {profile ? (
-        <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="p-4 bg-white border border-slate-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
           <div className="space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-sky-400">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600">
               Active Candidate Profile
             </span>
-            <h3 className="text-sm font-bold text-white">
-              {profile.headline || 'Verified Candidate Profile'}
+            <h3 className="text-sm font-semibold text-slate-900">
+              {profile.headline || 'Candidate Profile'}
             </h3>
-            <p className="text-xs text-slate-400 line-clamp-1 max-w-lg">
+            <p className="text-xs text-slate-500 line-clamp-1 max-w-lg">
               {profile.summary || 'Verified profile data stored in PostgreSQL'}
             </p>
             <div className="flex flex-wrap gap-1 mt-1">
               {(profile.skills || []).slice(0, 8).map((s, idx) => (
                 <span
                   key={idx}
-                  className="px-2 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 border border-slate-700"
+                  className="px-2 py-0.5 rounded text-[10px] bg-slate-100 text-slate-700 border border-slate-200"
                 >
                   {s}
                 </span>
               ))}
               {(profile.skills || []).length > 8 && (
-                <span className="text-[10px] text-slate-500 font-mono">
+                <span className="text-[10px] text-slate-400 font-mono">
                   +{(profile.skills || []).length - 8} more
                 </span>
               )}
             </div>
           </div>
 
-          <div className="text-xs text-slate-400 sm:text-right shrink-0">
+          <div className="text-xs text-slate-500 sm:text-right shrink-0">
             <div>
               Target Roles:{' '}
-              <span className="text-slate-200 font-medium">
-                {(profile.target_titles || []).slice(0, 2).join(', ') || 'General Tech'}
+              <span className="text-slate-800 font-medium">
+                {(profile.target_titles || []).slice(0, 2).join(', ') || 'Tech'}
               </span>
             </div>
-            <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+            <div className="text-[11px] text-slate-400 font-mono mt-0.5">
               ID: {profile.id.slice(0, 8)}...
             </div>
           </div>
         </div>
       ) : isLoadingProfile ? (
-        <div className="p-4 bg-slate-900/30 border border-slate-800 rounded-xl text-xs text-slate-500 italic">
-          Loading candidate profile context...
+        <div className="p-4 bg-white border border-slate-200 rounded-xl text-xs text-slate-400 italic">
+          Loading profile context...
         </div>
       ) : (
-        <div className="p-4 bg-amber-950/20 border border-amber-800/40 rounded-xl text-xs text-amber-300">
-          No candidate profile found. Please upload a resume or create your profile in Candidate Profile page first.
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800">
+          No profile found. Please upload a resume or create your profile in the Profile tab.
         </div>
       )}
 
       {/* Comprehensive Filter Section */}
-      <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-4 shadow-lg backdrop-blur">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
+      <div className="bg-white border border-slate-200 rounded-xl p-4 sm:p-5 space-y-3 shadow-sm">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-sky-400" />
-            <h3 className="text-xs font-bold text-white uppercase tracking-wider">
-              Job Filters & Search Options
+            <Filter className="w-3.5 h-3.5 text-slate-500" />
+            <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+              Filters & Search
             </h3>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-400">
-              Showing <strong className="text-sky-300 font-bold">{filteredJobs.length}</strong> of{' '}
-              <strong className="text-slate-300">{jobs.length}</strong> jobs
+            <span className="text-xs text-slate-500">
+              Showing <strong className="text-slate-900 font-semibold">{filteredJobs.length}</strong> of{' '}
+              <strong className="text-slate-700">{jobs.length}</strong> jobs
             </span>
             {hasActiveFilters && (
               <button
                 onClick={clearAllFilters}
-                className="flex items-center gap-1 text-[11px] font-semibold text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1 rounded-lg border border-rose-500/20 transition-colors"
+                className="flex items-center gap-1 text-[11px] font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded border border-red-200 transition-colors"
               >
                 <X className="w-3 h-3" />
-                Clear Filters
+                Clear
               </button>
             )}
           </div>
         </div>
 
         {/* Inputs & Dropdowns Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5">
           {/* Keyword Search Input */}
           <div className="lg:col-span-2 relative">
-            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Role, company, or tech stack (e.g. Python)..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-sans"
+              placeholder="Role, company, or tech stack..."
+              className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-sans"
             />
           </div>
 
           {/* Location Filter Input */}
           <div className="relative">
-            <MapPin className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <MapPin className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
-              placeholder="Location (e.g. India, Remote)..."
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-sky-500 font-sans"
+              placeholder="Location..."
+              className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-sans"
             />
           </div>
 
           {/* Experience Level Dropdown */}
           <div className="relative">
-            <Award className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <Award className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <select
               value={experienceLevel}
               onChange={(e) => setExperienceLevel(e.target.value as any)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
+              className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
             >
-              <option value="all">All Experience Levels</option>
-              <option value="entry">Entry Level (0-2 Yrs)</option>
-              <option value="mid">Mid Level (2-5 Yrs)</option>
-              <option value="senior">Senior / Lead (5+ Yrs)</option>
+              <option value="all">All Levels</option>
+              <option value="entry">Entry (0-2 Yrs)</option>
+              <option value="mid">Mid (2-5 Yrs)</option>
+              <option value="senior">Senior (5+ Yrs)</option>
             </select>
           </div>
 
-          {/* Work Type Dropdown (Remote vs On-site) */}
+          {/* Work Type Dropdown */}
           <div className="relative">
-            <Globe className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <Globe className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <select
               value={workType}
               onChange={(e) => setWorkType(e.target.value as any)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
+              className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
             >
-              <option value="all">All Work Locations</option>
+              <option value="all">All Locations</option>
               <option value="remote">Remote Only</option>
               <option value="onsite">On-site / Office</option>
             </select>
           </div>
 
-          {/* Employment / Contract Type Dropdown */}
+          {/* Employment Type Dropdown */}
           <div className="relative">
-            <Clock className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-500" />
+            <Clock className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <select
               value={employmentType}
               onChange={(e) => setEmploymentType(e.target.value as any)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-sky-500 appearance-none cursor-pointer"
+              className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
             >
-              <option value="all">All Job Types</option>
+              <option value="all">All Types</option>
               <option value="full-time">Full-time</option>
-              <option value="contract">Contract / Freelance</option>
+              <option value="contract">Contract</option>
               <option value="part-time">Part-time</option>
             </select>
           </div>
         </div>
 
         {/* Quick-Select Badges Rows */}
-        <div className="space-y-2 pt-1 border-t border-slate-800/60">
-          {/* Experience Level Quick-Select Badges */}
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-semibold text-slate-400">Experience:</span>
-              {[
-                { id: 'all', label: 'All Levels' },
-                { id: 'entry', label: 'Entry Level (0-2 Yrs)' },
-                { id: 'mid', label: 'Mid Level (2-5 Yrs)' },
-                { id: 'senior', label: 'Senior / Lead (5+ Yrs)' },
-              ].map((exp) => (
-                <button
-                  key={exp.id}
-                  onClick={() => setExperienceLevel(exp.id as any)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                    experienceLevel === exp.id
-                      ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                      : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
-                  }`}
-                >
-                  {exp.label}
-                </button>
-              ))}
-            </div>
-
-            {/* Hide Discarded Checkbox Toggle */}
-            <label className="flex items-center gap-2 text-xs text-slate-300 bg-slate-950 px-3 py-1 rounded-lg border border-slate-800 cursor-pointer hover:border-slate-700 transition-colors">
-              <input
-                type="checkbox"
-                checked={hideDiscarded}
-                onChange={(e) => setHideDiscarded(e.target.checked)}
-                className="accent-rose-500 rounded"
-              />
-              <span>Hide Discarded Jobs ({Object.keys(discardsByJobId).length})</span>
-            </label>
-          </div>
-
-          {/* Source Quick-Select Badges */}
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-semibold text-slate-400">Source:</span>
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-medium text-slate-500">Source:</span>
             {[
-              { id: 'all', label: 'All Sources' },
-              { id: 'adzuna', label: 'Adzuna API' },
-              { id: 'remotive', label: 'Remotive API' },
-              { id: 'manual', label: 'Manual Demo Jobs' },
+              { id: 'all', label: 'All' },
+              { id: 'adzuna', label: 'Adzuna' },
+              { id: 'remotive', label: 'Remotive' },
+              { id: 'manual', label: 'Sample Jobs' },
             ].map((src) => (
               <button
                 key={src.id}
                 onClick={() => setSourceFilter(src.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
                   sourceFilter === src.id
-                    ? 'bg-sky-500/20 text-sky-300 border-sky-500/40'
-                    : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-slate-200'
+                    ? 'bg-blue-50 text-blue-700 border-blue-300'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
               >
                 {src.label}
               </button>
             ))}
           </div>
+
+          {/* Hide Discarded Checkbox Toggle */}
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={hideDiscarded}
+              onChange={(e) => setHideDiscarded(e.target.checked)}
+              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+            />
+            <span>Hide Discarded ({Object.keys(discardsByJobId).length})</span>
+          </label>
         </div>
       </div>
 
       {/* Jobs Grid */}
       {isLoadingJobs ? (
-        <div className="py-20 text-center space-y-3">
-          <RotateCw className="w-8 h-8 text-sky-400 animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">Loading ingested jobs from database...</p>
+        <div className="py-20 text-center space-y-2">
+          <RotateCw className="w-6 h-6 text-slate-400 animate-spin mx-auto" />
+          <p className="text-xs text-slate-500">Loading jobs...</p>
         </div>
       ) : jobError ? (
-        <div className="p-4 bg-red-950/30 border border-red-800/40 rounded-xl text-xs text-red-300">
+        <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600">
           {jobError}
         </div>
       ) : filteredJobs.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-slate-800 rounded-2xl space-y-3">
-          <Briefcase className="w-10 h-10 text-slate-600 mx-auto" />
-          <p className="text-sm font-semibold text-slate-300">No Jobs Found</p>
+        <div className="py-16 text-center border border-dashed border-slate-300 rounded-xl space-y-2 bg-white">
+          <Briefcase className="w-8 h-8 text-slate-400 mx-auto" />
+          <p className="text-sm font-semibold text-slate-700">No Jobs Found</p>
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            Try adjusting your search filters or click "Ingest Remotive Jobs" above to import live remote software jobs.
+            Try adjusting your search filters or click "Load Jobs" above to import live job postings.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {filteredJobs.map((job) => {
             const match = matchesByJobId[job.id];
             const isAnalyzing = analyzingJobIds[job.id];
@@ -732,27 +651,27 @@ export const JobDiscoveryPage: React.FC = () => {
             return (
               <div
                 key={job.id}
-                className={`bg-slate-900/60 border rounded-xl p-5 shadow-lg flex flex-col justify-between space-y-4 transition-all ${
+                className={`bg-white border rounded-xl p-5 shadow-sm hover:shadow transition-shadow flex flex-col justify-between space-y-3 ${
                   isDiscarded
-                    ? 'border-rose-900/40 opacity-75 bg-rose-950/10'
-                    : 'border-slate-800 hover:border-slate-700'
+                    ? 'border-slate-200 opacity-60 bg-slate-50'
+                    : 'border-slate-200'
                 }`}
               >
                 {/* Job Card Header */}
                 <div>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-base font-bold text-white tracking-tight leading-snug">
+                      <h3 className="text-[15px] font-semibold text-slate-900 leading-snug">
                         {job.title}
                       </h3>
-                      <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
-                        <span className="flex items-center gap-1 font-medium text-slate-300">
-                          <Building className="w-3.5 h-3.5 text-slate-500" />
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1">
+                        <span className="flex items-center gap-1 font-medium text-slate-700">
+                          <Building className="w-3.5 h-3.5 text-slate-400" />
                           {job.company}
                         </span>
                         <span>•</span>
                         <span className="flex items-center gap-1">
-                          <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                          <MapPin className="w-3.5 h-3.5 text-slate-400" />
                           {job.location || (job.is_remote ? 'Remote' : 'Location N/A')}
                         </span>
                       </div>
@@ -761,32 +680,32 @@ export const JobDiscoveryPage: React.FC = () => {
                     {match ? (
                       <MatchScoreBadge score={match.llm_score} size="md" />
                     ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-800 text-slate-400 border border-slate-700">
+                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-600 border border-slate-200">
                         {job.source}
                       </span>
                     )}
                   </div>
 
                   {/* Requirements Tags */}
-                  <div className="flex flex-wrap gap-1.5 mt-3">
+                  <div className="flex flex-wrap gap-1 mt-2.5">
                     {(job.requirements || []).slice(0, 5).map((req, idx) => (
                       <span
                         key={idx}
-                        className="px-2 py-0.5 rounded text-[11px] bg-slate-950 text-slate-300 border border-slate-800"
+                        className="px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 border border-slate-200"
                       >
                         {req}
                       </span>
                     ))}
                     {(job.requirements || []).length > 5 && (
-                      <span className="text-[10px] text-slate-500 font-mono py-0.5">
+                      <span className="text-[10px] text-slate-400 font-mono py-0.5">
                         +{(job.requirements || []).length - 5}
                       </span>
                     )}
                   </div>
 
-                  {/* Inline Matched/Missing Skills breakdown if analyzed */}
+                  {/* Skills breakdown */}
                   {match && (
-                    <div className="mt-3 pt-3 border-t border-slate-800/80">
+                    <div className="mt-3 pt-2.5 border-t border-slate-100">
                       <SkillPillList
                         matchedSkills={match.matched_skills}
                         missingSkills={match.missing_skills}
@@ -797,16 +716,15 @@ export const JobDiscoveryPage: React.FC = () => {
                 </div>
 
                 {/* Card Actions */}
-                <div className="pt-3 border-t border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    {/* Pipeline trigger or detail view */}
                     {match ? (
                       <button
                         onClick={() => {
                           setSelectedJobForModal(job);
                           setIsMatchModalOpen(true);
                         }}
-                        className="flex items-center gap-1 text-xs font-semibold text-sky-400 hover:text-sky-300 transition-colors"
+                        className="flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors"
                       >
                         <span>Match Breakdown</span>
                         <ChevronRight className="w-3.5 h-3.5" />
@@ -815,25 +733,25 @@ export const JobDiscoveryPage: React.FC = () => {
                       <button
                         onClick={() => handleRunPipeline(job)}
                         disabled={isAnalyzing}
-                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-600 hover:bg-sky-500 text-white transition-colors disabled:opacity-50 shadow"
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50"
                       >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        {isAnalyzing ? 'Analyzing 3 Stages...' : 'Analyze Match'}
+                        <RotateCw className={`w-3.5 h-3.5 ${isAnalyzing ? 'animate-spin' : ''}`} />
+                        {isAnalyzing ? 'Analyzing...' : 'Analyze Match'}
                       </button>
                     )}
                   </div>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     {/* Tailor Docs Button */}
                     <button
                       onClick={() => {
                         setSelectedJobForModal(job);
                         setIsTailorModalOpen(true);
                       }}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-colors"
+                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-colors"
                       title="Tailor grounded resume bullets and cover letter"
                     >
-                      <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                      <FileText className="w-3.5 h-3.5 text-slate-500" />
                       <span>Tailor</span>
                     </button>
 
@@ -843,18 +761,18 @@ export const JobDiscoveryPage: React.FC = () => {
                       disabled={isTracked || isTracking}
                       className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         isTracked
-                          ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-500/30'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                          : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200'
                       }`}
                     >
                       {isTracked ? (
                         <>
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                           <span>Tracked</span>
                         </>
                       ) : (
                         <>
-                          <BookmarkPlus className="w-3.5 h-3.5 text-sky-400" />
+                          <BookmarkPlus className="w-3.5 h-3.5 text-slate-500" />
                           <span>{isTracking ? 'Saving...' : 'Track'}</span>
                         </>
                       )}
@@ -862,13 +780,13 @@ export const JobDiscoveryPage: React.FC = () => {
 
                     {/* Discard Action */}
                     {isDiscarded ? (
-                      <div className="flex items-center gap-1.5 bg-rose-950/40 border border-rose-500/30 px-2 py-1 rounded-lg text-rose-300 text-[11px]">
-                        <span className="font-semibold capitalize">
+                      <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 px-2 py-1 rounded-md text-slate-600 text-[11px]">
+                        <span className="capitalize">
                           {discardsByJobId[job.id]?.reason_code?.replace(/_/g, ' ')}
                         </span>
                         <button
                           onClick={() => handleUndoDiscard(job.id)}
-                          className="p-1 hover:bg-rose-900/40 rounded transition-colors text-slate-400 hover:text-white"
+                          className="p-0.5 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-slate-700"
                           title="Undo Discard"
                         >
                           <RotateCcw className="w-3 h-3" />
@@ -877,8 +795,8 @@ export const JobDiscoveryPage: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleOpenDiscard(job)}
-                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-rose-950/40 hover:text-rose-300 hover:border-rose-500/30 text-slate-400 border border-slate-700 transition-colors"
-                        title="Discard recommendation and adjust AI search vector"
+                        className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors"
+                        title="Discard job"
                       >
                         <ThumbsDown className="w-3.5 h-3.5" />
                         <span>Discard</span>
