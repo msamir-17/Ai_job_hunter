@@ -53,6 +53,51 @@ async def get_my_profile(
     return profile
 
 
+@router.get(
+    "/active",
+    response_model=CandidateProfileResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Get active candidate profile for extension autofill and guest mode",
+    description="Returns the active candidate profile. If user is authenticated, returns their profile; otherwise returns seeded candidate profile.",
+)
+async def get_active_candidate_profile(
+    current_user: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> CandidateProfileResponse:
+    if current_user:
+        stmt = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
+        res = await db.execute(stmt)
+        prof = res.scalar_one_or_none()
+        if prof:
+            prof.full_name = current_user.full_name
+            prof.email = current_user.email
+            return prof
+
+    # Fallback to first profile in database
+    stmt = select(CandidateProfile).limit(1)
+    res = await db.execute(stmt)
+    prof = res.scalar_one_or_none()
+    if prof:
+        user_stmt = select(User).where(User.id == prof.user_id)
+        user_res = await db.execute(user_stmt)
+        user = user_res.scalar_one_or_none()
+        prof.full_name = user.full_name if user else "Mohammad Samir Khan"
+        prof.email = user.email if user else "samir.dev@example.com"
+        return prof
+
+    return CandidateProfileResponse(
+        id=uuid.uuid4(),
+        full_name="Mohammad Samir Khan",
+        email="samir.dev@example.com",
+        headline="AI/ML Engineer & Systems Developer",
+        summary="AI Engineer experienced in RAG pipelines, FastAPI, PostgreSQL pgvector, and LLM evaluation benchmarks.",
+        skills=["Python", "FastAPI", "PostgreSQL", "PyTorch", "Docker"],
+        target_titles=["AI Engineer", "Machine Learning Engineer"],
+        experience=[],
+        education=[],
+    )
+
+
 @router.put(
     "/me",
     response_model=CandidateProfileResponse,

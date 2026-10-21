@@ -11,7 +11,8 @@ ADZUNA_BASE_URL = "https://api.adzuna.com/v1/api/jobs"
 
 class AdzunaJobSourceAdapter(BaseJobSourceAdapter):
     """
-    Job source adapter for Adzuna Job Search API (aggregating Naukri, Indeed, LinkedIn, etc.)
+    Job source adapter for Adzuna Official Job Search API.
+    Fetches live postings from indexed publisher feeds across 16+ supported countries.
     """
 
     def __init__(self, country: str = "in", app_id: str | None = None, app_key: str | None = None):

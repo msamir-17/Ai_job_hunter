@@ -9,6 +9,7 @@ from app.api.resume import router as resume_router
 from app.api.tailoring import router as tailoring_router
 from app.api.applications import router as applications_router
 from app.api.feedback import router as feedback_router
+from app.api.screening_qa import router as screening_qa_router
 
 app = FastAPI(
     title="AI Job Hunter Co-Pilot API",
@@ -25,6 +26,7 @@ app.include_router(matching_router)
 app.include_router(tailoring_router)
 app.include_router(applications_router)
 app.include_router(feedback_router)
+app.include_router(screening_qa_router)
 
 
 # Configure CORS for frontend access

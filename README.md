@@ -67,7 +67,10 @@ We evaluate matching accuracy and anti-hallucination defenses using a stratified
 2. **Anti-Hallucination Fact-ID Verifier (Phase 2):** Mandates Fact-ID citations for generated resume bullets and runs a double-pass Python verifier cross-checking metrics, numbers, and technical tools against candidate profile facts.
 3. **Async Job Queue & State Machine (Phase 3):** PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` concurrency worker advancing jobs through pipeline states (`ingested` → `filtered` → `scored` → `tailored` → `notified`) with content-hash LLM result caching ($0 API cost for duplicate postings).
 4. **Personalization & Feedback Loop (Phase 4):** Uses Rocchio query vector updates ($q_{new} = \alpha q_{profile} + \beta \bar{S} - \gamma \bar{D}$) to dynamically adapt candidate vectors toward saved jobs and away from discarded roles.
-5. **Human-in-the-Loop Chrome Extension Sidecar (Phase 5):** Manifest V3 browser extension for safe, privacy-preserving autofill of application fields on Greenhouse, Lever, and Workday (Never auto-submits).
+5. **Human-in-the-Loop Chrome Extension Sidecar (Phase 5):** Manifest V3 browser extension for safe, privacy-preserving autofill of application fields on Greenhouse, Lever, and Workday. Evaluated at 100% detection accuracy. Triggered strictly on user click, uses React prototype descriptor setters, and NEVER auto-submits.
+6. **Native Single-Page ATS PDF Export Engine (Phase 6):** ReportLab-powered binary PDF streaming engine producing single-column, ATS-optimized 1-page resumes with proportional margins, section dividing lines, and zero external binary dependencies.
+7. **Application Screening Questions Q&A Agent (Phase 7):** Grounded answering engine for employer application questionnaires (e.g., technical depth, motivation, notice periods). Strictly references candidate truth vault facts with anti-hallucination tracking and transparent declaration of missing skills.
+8. **Live Job Ingestion via Adzuna Aggregator:** Integrates with Adzuna's official developer API (`api.adzuna.com`) to ingest live vacancies across 16+ countries with salary and keyword extraction. Note: Ingests verified postings from participating publisher networks and does not scrape proprietary walled-garden sites.
 
 ## Quickstart Guide
 

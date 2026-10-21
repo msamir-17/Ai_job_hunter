@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lever Job Application - AI Engineer</title>
+</head>
+<body>
+  <div class="application-form">
+    <h2>Apply for this job</h2>
+    <form id="application-form">
+      <!-- Resume upload -->
+      <div class="form-group">
+        <label>Resume/CV <span>✱</span></label>
+        <input type="file" name="resume" id="resume-upload-input" accept=".pdf,.doc,.docx" />
+      </div>
+
+      <!-- Full Name -->
+      <div class="form-group">
+        <label>Full Name <span>✱</span></label>
+        <input type="text" name="name" autocomplete="name" placeholder="Enter your full name" />
+      </div>
+
+      <!-- Email -->
+      <div class="form-group">
+        <label>Email <span>✱</span></label>
+        <input type="email" name="email" autocomplete="email" placeholder="you@example.com" />
+      </div>
+
+      <!-- Phone -->
+      <div class="form-group">
+        <label>Phone <span>✱</span></label>
+        <input type="tel" name="phone" autocomplete="tel" placeholder="Phone number" />
+      </div>
+
+      <!-- Current Company / Org -->
+      <div class="form-group">
+        <label>Current Company</label>
+        <input type="text" name="org" placeholder="Current company / organization" />
+      </div>
+
+      <!-- Links -->
+      <div class="form-group">
+        <label>LinkedIn URL</label>
+        <input type="text" name="urls[LinkedIn]" placeholder="https://linkedin.com/in/..." />
+      </div>
+      <div class="form-group">
+        <label>GitHub URL</label>
+        <input type="text" name="urls[GitHub]" placeholder="https://github.com/..." />
+      </div>
+      <div class="form-group">
+        <label>Portfolio URL</label>
+        <input type="text" name="urls[Portfolio]" placeholder="https://..." />
+      </div>
+
+      <!-- Comments / Cover letter -->
+      <div class="form-group">
+        <label>Additional Information</label>
+        <textarea name="comments" placeholder="Add any comments or cover note"></textarea>
+      </div>
+
+      <button type="submit" id="btn-submit">Submit Application</button>
+    </form>
+  </div>
+</body>
+</html>

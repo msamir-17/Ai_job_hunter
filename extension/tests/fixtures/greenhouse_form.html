@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Greenhouse Application - Machine Learning Engineer</title>
+</head>
+<body>
+  <div id="application">
+    <form id="application_form">
+      <!-- First Name -->
+      <div class="field">
+        <label for="first_name">First Name <span class="asterisk">*</span></label>
+        <input type="text" id="first_name" name="first_name" autocomplete="given-name" />
+      </div>
+
+      <!-- Last Name -->
+      <div class="field">
+        <label for="last_name">Last Name <span class="asterisk">*</span></label>
+        <input type="text" id="last_name" name="last_name" autocomplete="family-name" />
+      </div>
+
+      <!-- Email -->
+      <div class="field">
+        <label for="email">Email <span class="asterisk">*</span></label>
+        <input type="email" id="email" name="email" autocomplete="email" />
+      </div>
+
+      <!-- Phone -->
+      <div class="field">
+        <label for="phone">Phone <span class="asterisk">*</span></label>
+        <input type="tel" id="phone" name="phone" autocomplete="tel" />
+      </div>
+
+      <!-- Location -->
+      <div class="field">
+        <label for="job_application_location">Location (City) <span class="asterisk">*</span></label>
+        <input type="text" id="job_application_location" name="job_application[location]" autocomplete="address-level2" placeholder="e.g. Mumbai, India" />
+      </div>
+
+      <!-- Resume Upload -->
+      <div class="field">
+        <label for="resume">Resume/CV <span class="asterisk">*</span></label>
+        <input type="file" id="resume" name="job_application[answers_attributes][0][attachment]" accept=".pdf,.doc,.docx" />
+      </div>
+
+      <!-- Social Links -->
+      <div class="field">
+        <label for="job_application_answers_attributes_1_text_value">LinkedIn Profile</label>
+        <input type="text" id="job_application_answers_attributes_1_text_value" name="job_application[answers_attributes][1][text_value]" placeholder="LinkedIn Profile Link" />
+      </div>
+
+      <div class="field">
+        <label for="job_application_answers_attributes_2_text_value">Website / GitHub</label>
+        <input type="text" id="job_application_answers_attributes_2_text_value" name="job_application[answers_attributes][2][text_value]" placeholder="GitHub / Portfolio" />
+      </div>
+
+      <input type="submit" value="Submit Application" id="submit_app" />
+    </form>
+  </div>
+</body>
+</html>

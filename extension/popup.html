@@ -2,62 +2,177 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>AI Job Hunter Helper</title>
+  <title>HireIQ Assistant</title>
   <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
     body {
       width: 320px;
-      font-family: system-ui, -apple-system, sans-serif;
-      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       padding: 16px;
-      background: #0f172a;
-      color: #f8fafc;
+      background: #ffffff;
+      color: #0f172a;
     }
-    h2 {
-      font-size: 16px;
-      margin-top: 0;
-      color: #38bdf8;
+    .header {
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      border-bottom: 1px solid #f1f5f9;
+      padding-bottom: 10px;
+      margin-bottom: 12px;
     }
-    .status-card {
-      background: #1e293b;
-      padding: 12px;
+    .brand-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: #0f172a;
+      letter-spacing: -0.3px;
+    }
+    .guardrail-pill {
+      font-size: 10px;
+      font-weight: 600;
+      background: #ecfdf5;
+      color: #065f46;
+      border: 1px solid #a7f3d0;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .profile-card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
       border-radius: 8px;
-      border: 1px solid #334155;
-      margin-bottom: 16px;
-      font-size: 13px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 12px;
+    }
+    .profile-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .profile-label {
+      color: #64748b;
+      font-weight: 500;
+    }
+    .profile-val {
+      color: #0f172a;
+      font-weight: 600;
+      max-width: 170px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ats-badge {
+      display: inline-block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #2563eb;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 3px 8px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      width: 100%;
+      text-align: center;
     }
     .btn {
       width: 100%;
-      padding: 10px;
-      background: #0284c7;
-      color: white;
+      padding: 9px;
+      background: #2563eb;
+      color: #ffffff;
       border: none;
-      border-radius: 6px;
+      border-radius: 7px;
+      font-size: 12.5px;
       font-weight: 600;
       cursor: pointer;
-      transition: background 0.2s;
+      transition: background 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
     .btn:hover {
-      background: #0369a1;
+      background: #1d4ed8;
+    }
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .result-box {
+      margin-top: 10px;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      display: none;
+    }
+    .result-success {
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      color: #065f46;
+    }
+    .result-warn {
+      background: #fffbeb;
+      border: 1px solid #fde68a;
+      color: #92400e;
     }
     .footer {
-      font-size: 11px;
-      color: #94a3b8;
+      font-size: 10.5px;
+      color: #64748b;
       margin-top: 12px;
       text-align: center;
+      line-height: 1.35;
     }
   </style>
 </head>
 <body>
-  <h2><span>🎯</span> AI Job Hunter Sidecar</h2>
-  <div class="status-card">
-    <div><strong>HITL Guardrail:</strong> Active</div>
-    <div style="color: #4ade80; margin-top: 4px;">Ready to Autofill Form</div>
+  <div class="header">
+    <span class="brand-title">HireIQ Assistant</span>
+    <span class="guardrail-pill">HITL Active</span>
   </div>
-  <button id="autofill-btn" class="btn">Auto-Fill Application Form</button>
-  <div class="footer">Human Review Required. Never Auto-Submits.</div>
+
+  <div class="profile-card">
+    <div class="profile-row">
+      <span class="profile-label">Candidate:</span>
+      <span id="profile-name" class="profile-val">Loading...</span>
+    </div>
+    <div class="profile-row" style="margin-bottom: 0;">
+      <span class="profile-label">Email:</span>
+      <span id="profile-email" class="profile-val">Syncing...</span>
+    </div>
+  </div>
+
+  <div id="ats-indicator" class="ats-badge">
+    Detecting ATS platform...
+  </div>
+
+  <button id="autofill-btn" class="btn">
+    Auto-Fill Application Form
+  </button>
+
+  <div id="result-box" class="result-box"></div>
+
+  <div style="margin-top: 14px; border-top: 1px solid #e2e8f0; padding-top: 12px;">
+    <div style="font-size: 12px; font-weight: 700; color: #0f172a; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+      <span>✨ Screening Q&A Agent</span>
+      <span style="font-size: 10px; color: #16a34a; font-weight: 600;">Zero-Hallucination</span>
+    </div>
+    <input id="qa-question-input" type="text" placeholder="e.g. Experience with FastAPI? Or Why Acme?" style="width: 100%; padding: 7px 9px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 6px; box-sizing: border-box;" />
+    <button id="qa-generate-btn" class="btn" style="background: #334155; padding: 7px; font-size: 11.5px;">
+      Generate Grounded Answer
+    </button>
+    <div id="qa-result-box" style="display: none; margin-top: 8px; padding: 8px 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 11px;">
+      <div id="qa-answer-text" style="color: #1e293b; line-height: 1.45; margin-bottom: 6px; white-space: pre-wrap;"></div>
+      <div id="qa-meta" style="font-size: 9.5px; color: #64748b; margin-bottom: 6px; border-top: 1px dashed #e2e8f0; padding-top: 4px;"></div>
+      <button id="qa-copy-btn" style="padding: 4px 10px; font-size: 10.5px; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; cursor: pointer; font-weight: 600;">📋 Copy Answer</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    🛡️ <strong>Zero-Risk Guarantee:</strong> Never automatically submits forms or stores passwords.
+  </div>
+
   <script src="popup.js"></script>
 </body>
 </html>

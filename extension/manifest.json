@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "AI Job Hunter — Application Helper",
-  "version": "1.0.0",
-  "description": "Human-in-the-Loop Chrome Extension for auto-filling job application fields safely from your AI Job Hunter profile.",
+  "name": "HireIQ — Application Assistant (HITL)",
+  "version": "1.1.0",
+  "description": "Human-in-the-Loop browser assistant for safely auto-filling verified candidate profile facts into Lever, Greenhouse, and Workday forms. Never auto-submits.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -13,7 +13,8 @@
     "http://127.0.0.1:8000/*",
     "https://*.greenhouse.io/*",
     "https://*.lever.co/*",
-    "https://*.workday.com/*"
+    "https://*.workday.com/*",
+    "https://*.myworkdayjobs.com/*"
   ],
   "action": {
     "default_popup": "popup.html",
@@ -28,8 +29,10 @@
       "matches": [
         "https://*.greenhouse.io/*",
         "https://*.lever.co/*",
-        "https://*.workday.com/*"
+        "https://*.workday.com/*",
+        "https://*.myworkdayjobs.com/*"
       ],
+      "all_frames": true,
       "js": ["content_script.js"]
     }
   ]
