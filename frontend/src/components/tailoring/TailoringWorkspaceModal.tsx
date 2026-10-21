@@ -50,6 +50,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   const [activeTab, setActiveTab] = useState<'ats_resume' | 'resume' | 'cover_letter'>('ats_resume');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [atsError, setAtsError] = useState<string | null>(null);
 
   // ATS Resume Studio state
   const [atsResume, setAtsResume] = useState<ATSTailoredResume | null>(null);
@@ -72,18 +73,24 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
-  // Load archetypes and auto-generate when opened
+  // Load archetypes and auto-generate ATS Resume when opened
   useEffect(() => {
     if (isOpen) {
       loadArchetypes();
       if (!atsResume && !isGeneratingATS) {
         handleGenerateATS(null);
       }
+    }
+  }, [isOpen]);
+
+  // Lazy-load legacy LLM drafts only when switching to Resume Bullets or Cover Letter
+  useEffect(() => {
+    if (isOpen && (activeTab === 'resume' || activeTab === 'cover_letter')) {
       if (!tailoringData && !isGenerating) {
         handleGenerateLegacyDrafts();
       }
     }
-  }, [isOpen]);
+  }, [isOpen, activeTab]);
 
   const loadArchetypes = async () => {
     try {
@@ -96,14 +103,14 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
 
   const handleGenerateATS = async (forcedArchId: string | null = selectedArchetype) => {
     setIsGeneratingATS(true);
-    setGenerateError(null);
+    setAtsError(null);
     try {
       const resume = await generateATSResume(candidateProfileId, job.id, forcedArchId);
       setAtsResume(resume);
       setSelectedArchetype(forcedArchId);
     } catch (err: any) {
       console.error('Failed to generate ATS resume:', err);
-      setGenerateError(err.message || 'Failed to assemble ATS resume.');
+      setAtsError(err.message || 'Failed to assemble ATS resume.');
     } finally {
       setIsGeneratingATS(false);
     }
@@ -173,7 +180,13 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
 
       setAuditResult(result.audit_result);
     } catch (err: any) {
-      setGenerateError(err.message || 'Failed to generate tailored application documents.');
+      console.error('Failed to generate tailored drafts:', err);
+      const msg = err.message || '';
+      if (msg.includes('API key') || msg.includes('API_KEY')) {
+        setGenerateError('Gemini API key is not configured or invalid in .env. To generate AI cover letters, add a valid GEMINI_API_KEY. (You can still preview and download your ATS Resume).');
+      } else {
+        setGenerateError(msg || 'Failed to generate tailored application documents.');
+      }
     } finally {
       setIsGenerating(false);
     }
@@ -448,10 +461,19 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
 
         {/* Modal Body */}
         <div className="p-6 overflow-y-auto flex-1 space-y-4">
-          {generateError && (
+          {activeTab === 'ats_resume' && atsError && (
             <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 space-y-1">
               <p className="font-semibold flex items-center gap-1.5">
-                <AlertCircle className="w-4 h-4" /> Error
+                <AlertCircle className="w-4 h-4" /> ATS Resume Error
+              </p>
+              <p>{atsError}</p>
+            </div>
+          )}
+
+          {activeTab !== 'ats_resume' && generateError && (
+            <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-800 space-y-1">
+              <p className="font-semibold flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600" /> AI Generation Notice
               </p>
               <p>{generateError}</p>
             </div>

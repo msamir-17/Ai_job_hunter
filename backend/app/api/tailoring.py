@@ -159,7 +159,7 @@ async def generate_ats_resume(
         vault=vault,
         job_title=job.title,
         job_company=job.company,
-        job_description=job.description,
+        job_description=job.description_raw or "",
         skills_required=job.skills_required,
         forced_archetype_id=payload.forced_archetype_id,
     )

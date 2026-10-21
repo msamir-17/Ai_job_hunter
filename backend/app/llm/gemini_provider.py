@@ -27,8 +27,10 @@ class GeminiLLMProvider(BaseLLMProvider):
         user_prompt: str,
         response_schema: Type[T],
     ) -> T:
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY is not configured in settings or environment.")
+        if not self.api_key or self.api_key.strip() in ("", "your_gemini_api_key_here"):
+            raise ValueError(
+                "Gemini API key is not configured. Please add a valid GEMINI_API_KEY to your .env file."
+            )
 
         start_time = time.time()
 
