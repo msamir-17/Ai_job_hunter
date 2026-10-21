@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, BASE_URL } from './client';
 import {
   AntiHallucinationAuditResult,
   ArchetypeConfig,
@@ -54,3 +54,39 @@ export async function generateATSResume(
     }),
   });
 }
+
+export async function downloadATSTailoredResumePdf(
+  resume: ATSTailoredResume,
+  filename?: string
+): Promise<void> {
+  const url = `${BASE_URL}/api/v1/tailoring/ats-resume/download-from-data`;
+  const token = localStorage.getItem('auth_token');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(resume),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to generate PDF: ${response.statusText}`);
+  }
+
+  const blob = await response.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = downloadUrl;
+  const cleanName = (resume.candidate_name || 'Resume').replace(/[^a-zA-Z0-9_-]/g, '_');
+  link.download = filename || `${cleanName}_ATS_Resume.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(downloadUrl);
+}
+

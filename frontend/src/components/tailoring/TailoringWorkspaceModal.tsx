@@ -10,6 +10,7 @@ import {
   FileCheck2,
   AlertCircle,
   Printer,
+  Download,
   Layers,
   FileText,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ import {
   auditDocumentText,
   generateATSResume,
   getArchetypes,
+  downloadATSTailoredResumePdf,
 } from '../../api/tailoring';
 import { attachDocument } from '../../api/applications';
 
@@ -54,6 +56,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   const [isGeneratingATS, setIsGeneratingATS] = useState<boolean>(false);
   const [selectedArchetype, setSelectedArchetype] = useState<string | null>(null);
   const [availableArchetypes, setAvailableArchetypes] = useState<ArchetypeConfig[]>([]);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
 
   // Document drafts
   const [tailoringData, setTailoringData] = useState<DocumentTailoringResponse | null>(null);
@@ -266,6 +269,19 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
     setTimeout(() => {
       printWindow.print();
     }, 250);
+  };
+
+  const handleDownloadATSResumePdf = async () => {
+    if (!atsResume) return;
+    setIsDownloadingPdf(true);
+    try {
+      await downloadATSTailoredResumePdf(atsResume);
+    } catch (err: any) {
+      console.error('Failed to download ATS resume PDF:', err);
+      setGenerateError('Failed to generate PDF download. You can still use the Print button.');
+    } finally {
+      setIsDownloadingPdf(false);
+    }
   };
 
   const handleCopy = () => {
@@ -698,15 +714,26 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
           </div>
 
           <div className="flex items-center gap-2 w-full sm:w-auto">
-            {/* Download / Print ATS PDF Button */}
+            {/* Download & Print ATS PDF Buttons */}
             {activeTab === 'ats_resume' && atsResume && (
-              <button
-                onClick={handlePrintATSResume}
-                className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-              >
-                <Printer className="w-3.5 h-3.5" />
-                <span>Print PDF</span>
-              </button>
+              <>
+                <button
+                  onClick={handleDownloadATSResumePdf}
+                  disabled={isDownloadingPdf}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50"
+                  title="Download pixel-perfect 1-page ATS PDF file"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>{isDownloadingPdf ? 'Generating...' : 'Download PDF'}</span>
+                </button>
+                <button
+                  onClick={handlePrintATSResume}
+                  className="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-lg bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition-colors"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>Print</span>
+                </button>
+              </>
             )}
 
             <button

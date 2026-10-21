@@ -1,8 +1,9 @@
 import json
+import re
 from pathlib import Path
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +24,7 @@ from app.schemas.tailoring import (
 from app.services.document_tailoring import DocumentTailoringService
 from app.services.fact_selector import FactSelectorEngine
 from app.services.pdf_renderer import render_ats_resume_html
+from app.services.pdf_generator import generate_ats_resume_pdf
 
 router = APIRouter(prefix="/api/v1/tailoring", tags=["Document Tailoring & Grounding"])
 
@@ -178,3 +180,52 @@ async def render_ats_resume_document(
     resume = await generate_ats_resume(payload=payload, db=db)
     html_content = render_ats_resume_html(resume)
     return HTMLResponse(content=html_content, status_code=200)
+
+
+@router.post(
+    "/ats-resume/pdf",
+    response_class=Response,
+    status_code=status.HTTP_200_OK,
+    summary="Download ATS-compliant tailored resume as binary PDF",
+    description="Generates an ATS-compliant tailored resume from database models and compiles to a pixel-perfect binary PDF.",
+)
+async def export_ats_resume_pdf(
+    payload: ATSTailoringRequest,
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    resume = await generate_ats_resume(payload=payload, db=db)
+    pdf_bytes = generate_ats_resume_pdf(resume)
+    clean_name = re.sub(r"[^a-zA-Z0-9_-]", "_", resume.candidate_name)
+    filename = f"{clean_name}_ATS_Resume.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
+
+@router.post(
+    "/ats-resume/download-from-data",
+    response_class=Response,
+    status_code=status.HTTP_200_OK,
+    summary="Directly convert existing ATSTailoredResume data to downloadable PDF",
+    description="Takes currently rendered client-side ATSTailoredResume JSON data and compiles to a binary PDF attachment.",
+)
+async def convert_ats_resume_json_to_pdf(
+    resume: ATSTailoredResume,
+) -> Response:
+    pdf_bytes = generate_ats_resume_pdf(resume)
+    clean_name = re.sub(r"[^a-zA-Z0-9_-]", "_", resume.candidate_name)
+    filename = f"{clean_name}_ATS_Resume.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition",
+        },
+    )
+
