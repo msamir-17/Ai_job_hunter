@@ -2,12 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight,
-  CheckCircle2,
   FileUp,
   Target,
   Download,
-  Sparkles,
-  ShieldCheck,
   Lock,
   ExternalLink,
   User,
@@ -63,12 +60,6 @@ export const Home: React.FC = () => {
 
         {/* 1. HERO SECTION */}
         <section className="text-center space-y-6 pt-4 sm:pt-8 max-w-3xl mx-auto">
-          {/* Subtle badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/60 text-blue-700 text-xs font-semibold tracking-wide shadow-sm">
-            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
-            <span>Fact-Grounded Job Hunting</span>
-          </div>
-
           {/* Headline */}
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold text-slate-900 tracking-tight leading-[1.18]">
             Apply smarter. Tailor every resume to the job,{' '}
@@ -239,9 +230,6 @@ export const Home: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Feature 1 */}
             <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3 hover:shadow-xs transition-shadow">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
-                <CheckCircle2 className="w-4 h-4" />
-              </div>
               <h3 className="text-sm font-bold text-slate-900">
                 Match scores you can understand
               </h3>
@@ -255,9 +243,6 @@ export const Home: React.FC = () => {
 
             {/* Feature 2 */}
             <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3 hover:shadow-xs transition-shadow">
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600">
-                <Sparkles className="w-4 h-4" />
-              </div>
               <h3 className="text-sm font-bold text-slate-900">
                 Tailored, not invented
               </h3>
@@ -271,9 +256,6 @@ export const Home: React.FC = () => {
 
             {/* Feature 3 */}
             <div className="bg-white border border-slate-200 rounded-xl p-6 space-y-3 hover:shadow-xs transition-shadow">
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600">
-                <ShieldCheck className="w-4 h-4" />
-              </div>
               <h3 className="text-sm font-bold text-slate-900">
                 You stay in control
               </h3>
