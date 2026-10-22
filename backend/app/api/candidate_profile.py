@@ -144,7 +144,7 @@ async def update_my_profile(
     "/me/seed-facts",
     response_model=CandidateProfileResponse,
     status_code=status.HTTP_200_OK,
-    summary="Populate candidate profile with master Truth Vault facts",
+    summary="Populate candidate profile with master verified facts",
     description="Loads master verified facts from candidate_facts.json and populates the current user's profile with projects, skills, education, and achievements.",
 )
 async def seed_my_profile_from_facts(

@@ -60,6 +60,7 @@ export async function attachDocument(
     doc_type: string;
     content: string;
     is_approved_by_user?: boolean;
+    is_user_edited?: boolean;
   }
 ): Promise<GeneratedDocumentResponse> {
   return apiClient<GeneratedDocumentResponse>(`/api/v1/applications/${applicationId}/documents`, {
@@ -74,6 +75,7 @@ export async function updateDocumentApproval(
   payload: {
     content?: string;
     is_approved_by_user?: boolean;
+    is_user_edited?: boolean;
   }
 ): Promise<GeneratedDocumentResponse> {
   return apiClient<GeneratedDocumentResponse>(

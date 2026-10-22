@@ -97,7 +97,15 @@ class AsyncJobQueueWorker:
 
                 # Advance status: ingested -> filtered
                 match.status = PipelineStatus.FILTERED
-                
+
+                # If deterministic filter failed, skip scoring to avoid wasting LLM/compute budget
+                if not filter_res.passed_deterministic:
+                    match.vector_score = 0.0
+                    match.llm_score = 0
+                    match.last_error = None
+                    processed_count += 1
+                    continue
+
                 # Stage 2: Hybrid Vector Scoring with LLM Result Caching
                 req_chunk = extract_requirements_chunk(job.description_raw or "", job.title)
                 c_hash = compute_content_hash(candidate.skills or [], job.title, req_chunk)

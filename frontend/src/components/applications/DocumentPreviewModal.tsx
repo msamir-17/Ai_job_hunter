@@ -84,8 +84,20 @@ export const DocumentPreviewModal: React.FC<DocumentPreviewModalProps> = ({
           {currentDoc ? (
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">
-                  Version {currentDoc.version} • {currentDoc.is_approved_by_user ? (
+                <span className="text-xs text-slate-500 flex items-center gap-2">
+                  <span>Version {currentDoc.version}</span>
+                  <span>•</span>
+                  {currentDoc.is_user_edited ? (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                      User-Edited
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Verified AI
+                    </span>
+                  )}
+                  <span>•</span>
+                  {currentDoc.is_approved_by_user ? (
                     <span className="text-emerald-700 font-medium">Candidate Approved</span>
                   ) : (
                     <span className="text-amber-700 font-medium">Draft (Pending Approval)</span>

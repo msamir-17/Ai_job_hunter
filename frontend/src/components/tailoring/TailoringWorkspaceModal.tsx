@@ -83,6 +83,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   const [tailoringData, setTailoringData] = useState<DocumentTailoringResponse | null>(null);
   const [resumeText, setResumeText] = useState<string>('');
   const [coverLetterText, setCoverLetterText] = useState<string>('');
+  const [isUserEdited, setIsUserEdited] = useState<boolean>(false);
 
   // Audit state
   const [isAuditing, setIsAuditing] = useState<boolean>(false);
@@ -227,6 +228,9 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
     try {
       const res = await auditDocumentText(candidateProfileId, textToAudit, job.id);
       setAuditResult(res);
+      if (res.is_grounded ?? res.audit_status === 'PASS') {
+        setIsUserEdited(false);
+      }
     } catch (err: any) {
       console.error('Audit failed:', err);
     } finally {
@@ -365,6 +369,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
         doc_type: docType,
         content: content,
         is_approved_by_user: true,
+        is_user_edited: isUserEdited,
       });
 
       setSaveSuccessMessage(`Approved & attached ${activeTab === 'cover_letter' ? 'Cover Letter' : 'ATS Resume'} to Application!`);
@@ -909,16 +914,40 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-slate-700 flex items-center justify-between">
-                  <span>
-                    Editable {activeTab === 'resume' ? 'Resume Bullets' : 'Cover Letter'} Draft:
+                  <span className="flex items-center gap-2">
+                    <span>
+                      Editable {activeTab === 'resume' ? 'Resume Bullets' : 'Cover Letter'} Draft:
+                    </span>
+                    {isUserEdited ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800 border border-amber-200">
+                        User-Edited (Unverified)
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                        AI-Generated (Fact-Verified)
+                      </span>
+                    )}
                   </span>
-                  <span className="text-[11px] text-slate-400 font-normal">
-                    Verified against candidate profile facts
-                  </span>
+                  {isUserEdited ? (
+                    <button
+                      type="button"
+                      onClick={handleRunAudit}
+                      disabled={isAuditing}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-800 flex items-center gap-1 transition-colors"
+                    >
+                      <RotateCw className={`w-3.5 h-3.5 ${isAuditing ? 'animate-spin' : ''}`} />
+                      Re-Verify Text
+                    </button>
+                  ) : (
+                    <span className="text-[11px] text-slate-400 font-normal">
+                      Verified against candidate profile facts
+                    </span>
+                  )}
                 </label>
                 <textarea
                   value={activeTab === 'resume' ? resumeText : coverLetterText}
                   onChange={(e) => {
+                    setIsUserEdited(true);
                     if (activeTab === 'resume') setResumeText(e.target.value);
                     else setCoverLetterText(e.target.value);
                   }}

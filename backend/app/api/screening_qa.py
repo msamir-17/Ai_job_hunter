@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/v1/screening-qa", tags=["Screening Questions Q&A
     response_model=ScreeningQAResponse,
     status_code=status.HTTP_200_OK,
     summary="Answer an application screening question strictly grounded in verified facts",
-    description="Generates a tailored answer to an employer screening question using candidate truth vault facts with anti-hallucination tracking.",
+    description="Generates a tailored answer to an employer screening question using verified candidate profile facts with anti-hallucination tracking.",
 )
 async def answer_screening_question(
     payload: ScreeningQARequest,

@@ -6,6 +6,7 @@ export interface GeneratedDocumentResponse {
   doc_type: string;
   content: string;
   is_approved_by_user: boolean;
+  is_user_edited?: boolean;
   version: number;
   created_at?: string;
   updated_at?: string;

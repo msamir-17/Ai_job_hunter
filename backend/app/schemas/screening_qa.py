@@ -1,6 +1,6 @@
 """
 Pydantic schemas for the Application Screening Questions Q&A Agent.
-Strictly grounded in candidate truth vault facts with anti-hallucination tracking.
+Strictly grounded in verified candidate profile facts with anti-hallucination tracking.
 """
 
 from typing import List, Optional

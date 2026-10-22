@@ -198,7 +198,7 @@ export const CandidateProfilePage: React.FC = () => {
       setProfile(data);
       setSuccessMsg('Profile populated from verified source of truth.');
     } catch (err: any) {
-      setError(err.message || 'Failed to sync with truth vault.');
+      setError(err.message || 'Failed to sync with verified profile.');
     } finally {
       setLoading(false);
     }

@@ -25,6 +25,8 @@ class GeneratedDocumentUpdate(BaseModel):
     is_approved_by_user: bool | None = None
 
 
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
 class GeneratedDocumentResponse(BaseModel):
     """Schema for returning generated document data."""
 
@@ -32,7 +34,13 @@ class GeneratedDocumentResponse(BaseModel):
     application_id: UUID
     doc_type: str
     content: str
-    is_approved_by_user: bool
+    is_approved_by_user: bool = False
+    is_user_edited: bool = False
+
+    @field_validator("is_user_edited", mode="before")
+    @classmethod
+    def coerce_none_to_false(cls, v):
+        return bool(v) if v is not None else False
 
     model_config = ConfigDict(from_attributes=True)
 

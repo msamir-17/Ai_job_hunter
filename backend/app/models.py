@@ -461,6 +461,13 @@ class GeneratedDocument(Base):
         nullable=False,
     )
 
+    is_user_edited: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
+    )
+
+
     application: Mapped["Application"] = relationship(
         back_populates="generated_documents",
     )

@@ -323,9 +323,12 @@ async def update_document(
             detail=f"Document '{document_id}' not found for application '{application_id}'.",
         )
 
-    if payload.content is not None:
+    if payload.content is not None and payload.content != doc.content:
         doc.content = payload.content
-    if payload.is_approved_by_user is not None:
+        doc.is_user_edited = True
+        if payload.is_approved_by_user is None:
+            doc.is_approved_by_user = False
+    elif payload.is_approved_by_user is not None:
         doc.is_approved_by_user = payload.is_approved_by_user
 
     await db.commit()

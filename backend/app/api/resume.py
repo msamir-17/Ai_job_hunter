@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, s
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.rate_limiter import check_upload_rate_limit
 from app.database import get_db
 from app.llm import BaseLLMProvider, get_llm_provider
 from app.models import CandidateProfile, Resume
@@ -28,6 +29,7 @@ async def upload_resume(
     candidate_profile_id: UUID = Form(..., description="ID of the candidate profile"),
     file: UploadFile = File(..., description="Resume document (.pdf or .docx)"),
     db: AsyncSession = Depends(get_db),
+    _rate_limit: None = Depends(check_upload_rate_limit),
 ) -> ResumeResponse:
     # 1. Verify candidate profile exists
     stmt = select(CandidateProfile).where(CandidateProfile.id == candidate_profile_id)

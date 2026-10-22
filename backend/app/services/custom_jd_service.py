@@ -320,7 +320,7 @@ class CustomJDTailoringService:
         """
         End-to-end execution:
         1. Auto-extracts details from raw JD.
-        2. Assembles 1-page ATSTailoredResume strictly derived from candidate truth vault.
+        2. Assembles 1-page ATSTailoredResume strictly derived from verified candidate profile.
         3. Executes Pre-Flight Recruiter & ATS Gap Audit.
         4. Generates 4-line Cold Outreach.
         5. Assembles response bundle.
