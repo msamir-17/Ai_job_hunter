@@ -6,6 +6,10 @@ import pypdf.errors
 MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024  # 5 MB
 
 
+PDF_MAGIC = b"%PDF"
+DOCX_MAGIC = b"PK\x03\x04"
+
+
 def parse_resume_file(file_name: str, content: bytes) -> str:
     """
     Validate file properties and extract raw text from PDF or DOCX content.
@@ -19,14 +23,19 @@ def parse_resume_file(file_name: str, content: bytes) -> str:
     if len(content) == 0:
         raise ValueError("Uploaded file is empty.")
 
-    # 2. Extension validation
+    # 2. Extension and magic byte signature validation
     clean_filename = file_name.lower().strip()
     if clean_filename.endswith(".pdf"):
+        if not content.startswith(PDF_MAGIC):
+            raise ValueError("File content does not match PDF format signature.")
         return _extract_text_from_pdf(content)
     elif clean_filename.endswith(".docx"):
+        if not content.startswith(DOCX_MAGIC):
+            raise ValueError("File content does not match DOCX format signature.")
         return _extract_text_from_docx(content)
     else:
         raise ValueError("Unsupported file format. Only PDF and DOCX files are allowed.")
+
 
 
 def _extract_text_from_pdf(content: bytes) -> str:

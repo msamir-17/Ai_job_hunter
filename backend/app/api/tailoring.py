@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user_optional
+from app.api.deps import get_current_user, get_current_user_optional
 from app.core.archetypes import list_available_archetypes
 from app.database import get_db
 from app.llm import BaseLLMProvider, get_llm_provider
@@ -36,8 +36,30 @@ router = APIRouter(prefix="/api/v1/tailoring", tags=["Document Tailoring & Groun
 FACTS_DATA_PATH = Path(__file__).parent.parent / "data" / "candidate_facts.json"
 
 
+async def _verify_candidate_ownership(
+    db: AsyncSession,
+    candidate_profile_id: UUID,
+    current_user: User,
+) -> CandidateProfile:
+    """Verify that candidate profile exists and is owned by the authenticated user."""
+    stmt = select(CandidateProfile).where(CandidateProfile.id == candidate_profile_id)
+    res = await db.execute(stmt)
+    candidate = res.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"CandidateProfile with ID '{candidate_profile_id}' not found.",
+        )
+    if candidate.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You do not own this candidate profile.",
+        )
+    return candidate
+
+
 def _load_truth_vault(candidate: CandidateProfile) -> CandidateTruthVault:
-    """Helper to load candidate truth vault data, merging profile attributes."""
+    """Helper to load candidate verified facts, merging profile attributes."""
     if FACTS_DATA_PATH.exists():
         with open(FACTS_DATA_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -65,9 +87,11 @@ def _load_truth_vault(candidate: CandidateProfile) -> CandidateTruthVault:
 )
 async def generate_tailored_documents(
     payload: DocumentTailoringRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     provider: BaseLLMProvider = Depends(get_llm_provider),
 ) -> DocumentTailoringResponse:
+    await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
     service = DocumentTailoringService(db=db, provider=provider)
     try:
         response = await service.generate_application_package(
@@ -93,16 +117,11 @@ async def generate_tailored_documents(
 )
 async def audit_document_text(
     payload: DocumentAuditRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> AntiHallucinationAuditResult:
-    # 1. Fetch CandidateProfile
-    stmt_cand = select(CandidateProfile).where(CandidateProfile.id == payload.candidate_profile_id)
-    candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"CandidateProfile with ID '{payload.candidate_profile_id}' not found.",
-        )
+    # 1. Fetch CandidateProfile and verify ownership
+    candidate = await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
 
     # 2. Fetch Job if job_id provided
     job: Job | None = None
@@ -139,16 +158,11 @@ async def get_available_archetypes() -> list[ArchetypeConfig]:
 )
 async def generate_ats_resume(
     payload: ATSTailoringRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ATSTailoredResume:
-    # 1. Fetch CandidateProfile
-    stmt_cand = select(CandidateProfile).where(CandidateProfile.id == payload.candidate_profile_id)
-    candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"CandidateProfile with ID '{payload.candidate_profile_id}' not found.",
-        )
+    # 1. Fetch CandidateProfile and verify ownership
+    candidate = await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
 
     # 2. Fetch Job
     stmt_job = select(Job).where(Job.id == payload.job_id)
@@ -180,9 +194,10 @@ async def generate_ats_resume(
 )
 async def render_ats_resume_document(
     payload: ATSTailoringRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> HTMLResponse:
-    resume = await generate_ats_resume(payload=payload, db=db)
+    resume = await generate_ats_resume(payload=payload, current_user=current_user, db=db)
     html_content = render_ats_resume_html(resume)
     return HTMLResponse(content=html_content, status_code=200)
 
@@ -196,9 +211,10 @@ async def render_ats_resume_document(
 )
 async def export_ats_resume_pdf(
     payload: ATSTailoringRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    resume = await generate_ats_resume(payload=payload, db=db)
+    resume = await generate_ats_resume(payload=payload, current_user=current_user, db=db)
     pdf_bytes = generate_ats_resume_pdf(resume)
     clean_name = re.sub(r"[^a-zA-Z0-9_-]", "_", resume.candidate_name)
     filename = f"{clean_name}_ATS_Resume.pdf"
@@ -221,6 +237,7 @@ async def export_ats_resume_pdf(
 )
 async def convert_ats_resume_json_to_pdf(
     resume: ATSTailoredResume,
+    current_user: User = Depends(get_current_user),
 ) -> Response:
     pdf_bytes = generate_ats_resume_pdf(resume)
     clean_name = re.sub(r"[^a-zA-Z0-9_-]", "_", resume.candidate_name)
@@ -244,16 +261,15 @@ async def convert_ats_resume_json_to_pdf(
 )
 async def tailor_custom_external_jd(
     payload: CustomJDTailoringRequest,
-    current_user: User | None = Depends(get_current_user_optional),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> CustomJDTailoringResponse:
-    # 1. Fetch CandidateProfile (Authenticated user or seeded profile)
-    candidate: CandidateProfile | None = None
-    if current_user:
-        stmt_cand = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-        candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
+    # 1. Fetch CandidateProfile for authenticated user
+    stmt_cand = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
+    candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
 
     if not candidate:
+        # Check if there is any profile to seed from
         stmt_seed = select(CandidateProfile).limit(1)
         candidate = (await db.execute(stmt_seed)).scalar_one_or_none()
 
@@ -276,7 +292,7 @@ async def tailor_custom_external_jd(
     if payload.save_to_tracker:
         new_job = Job(
             source="custom_paste",
-            external_id=f"custom_{current_user.id if current_user else 'guest'}_{uuid.uuid4().hex[:8]}",
+            external_id=f"custom_{current_user.id}_{uuid.uuid4().hex[:8]}",
             title=response.job_title,
             company=response.company_name,
             description_raw=payload.job_description,
@@ -301,5 +317,6 @@ async def tailor_custom_external_jd(
         response.job_id = new_job.id
 
     return response
+
 
 

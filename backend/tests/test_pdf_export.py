@@ -8,6 +8,7 @@ Verifies:
 5. API endpoint streaming response and headers.
 """
 import io
+import uuid
 import pypdf
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -119,23 +120,45 @@ def test_generate_ats_resume_pdf_special_characters():
 
 @pytest.mark.anyio
 async def test_convert_ats_resume_json_to_pdf_endpoint():
-    """Verify POST /api/v1/tailoring/ats-resume/download-from-data streams valid PDF."""
+    """Verify POST /api/v1/tailoring/ats-resume/download-from-data enforces auth and streams valid PDF."""
+    from app.api.deps import get_current_user
+    from app.models import User
+
     resume = _create_mock_tailored_resume()
     transport = ASGITransport(app=app)
 
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        response = await client.post(
+        # 1. Unauthenticated request must return 401 Unauthorized
+        unauth_resp = await client.post(
             "/api/v1/tailoring/ats-resume/download-from-data",
             json=resume.model_dump(),
         )
+        assert unauth_resp.status_code == 401
 
-        assert response.status_code == 200
-        assert response.headers["content-type"] == "application/pdf"
-        assert "Content-Disposition" in response.headers
-        assert "Mohammad_Samir_Khan_ATS_Resume.pdf" in response.headers["Content-Disposition"]
+        # 2. Authenticated user successfully generates PDF
+        mock_user = User(
+            id=uuid.uuid4(),
+            email="pdf_user@example.com",
+            hashed_password="pw",
+            full_name="Mohammad Samir Khan",
+        )
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        try:
+            response = await client.post(
+                "/api/v1/tailoring/ats-resume/download-from-data",
+                json=resume.model_dump(),
+            )
 
-        content = response.content
-        assert content.startswith(b"%PDF-")
+            assert response.status_code == 200
+            assert response.headers["content-type"] == "application/pdf"
+            assert "Content-Disposition" in response.headers
+            assert "Mohammad_Samir_Khan_ATS_Resume.pdf" in response.headers["Content-Disposition"]
 
-        reader = pypdf.PdfReader(io.BytesIO(content))
-        assert len(reader.pages) == 1
+            content = response.content
+            assert content.startswith(b"%PDF-")
+
+            reader = pypdf.PdfReader(io.BytesIO(content))
+            assert len(reader.pages) == 1
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+

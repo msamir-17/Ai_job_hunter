@@ -134,6 +134,10 @@ def test_tailor_custom_jd_end_to_end(sample_vault):
 
 @pytest.mark.anyio
 async def test_custom_jd_api_endpoint():
+    from app.api.deps import get_current_user
+    from app.models import User
+    import uuid
+
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         payload = {
@@ -141,10 +145,26 @@ async def test_custom_jd_api_endpoint():
             "language_tone": "hinglish",
             "save_to_tracker": False,
         }
-        res = await client.post("/api/v1/tailoring/custom-jd/tailor", json=payload)
-        assert res.status_code == 200
-        data = res.json()
-        assert "tailored_resume" in data
-        assert "recruiter_audit" in data
-        assert "cold_outreach" in data
-        assert data["recruiter_audit"]["ats_score"] > 0
+        # 1. Unauthenticated request must return 401 Unauthorized
+        unauth_res = await client.post("/api/v1/tailoring/custom-jd/tailor", json=payload)
+        assert unauth_res.status_code == 401
+
+        # 2. Authenticated user request succeeds
+        mock_user = User(
+            id=uuid.uuid4(),
+            email="custom_jd_user@example.com",
+            hashed_password="pw",
+            full_name="Custom JD Candidate",
+        )
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        try:
+            res = await client.post("/api/v1/tailoring/custom-jd/tailor", json=payload)
+            assert res.status_code == 200
+            data = res.json()
+            assert "tailored_resume" in data
+            assert "recruiter_audit" in data
+            assert "cold_outreach" in data
+            assert data["recruiter_audit"]["ats_score"] > 0
+        finally:
+            app.dependency_overrides.pop(get_current_user, None)
+

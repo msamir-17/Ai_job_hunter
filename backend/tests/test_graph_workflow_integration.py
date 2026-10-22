@@ -138,12 +138,24 @@ async def test_langgraph_pipeline_real_postgres():
                 assert "Python" in persisted_match.matched_skills
 
             # 4. Test HTTP Endpoint POST /api/v1/matching/pipeline/run
+            pipeline_payload = {
+                "candidate_profile_id": str(candidate_profile_id),
+                "job_id": str(job_id),
+            }
+
+            from app.core.security import create_access_token
+            auth_token = create_access_token(user_id=test_user_id, email=test_email)
+            auth_headers = {"Authorization": f"Bearer {auth_token}"}
+
+            # 4a. Unauthenticated returns 401
+            unauth_resp = await client.post("/api/v1/matching/pipeline/run", json=pipeline_payload)
+            assert unauth_resp.status_code == 401
+
+            # 4b. Authenticated returns 200
             resp = await client.post(
                 "/api/v1/matching/pipeline/run",
-                json={
-                    "candidate_profile_id": str(candidate_profile_id),
-                    "job_id": str(job_id),
-                },
+                json=pipeline_payload,
+                headers=auth_headers,
             )
             assert resp.status_code == 200
             data = resp.json()

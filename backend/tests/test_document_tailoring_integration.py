@@ -95,7 +95,14 @@ async def test_document_tailoring_and_audit_real_postgres():
                     hashed_password="hashed_password",
                     full_name="Tailoring Candidate",
                 )
-                db.add(user)
+                bob_id = uuid.uuid4()
+                bob_user = User(
+                    id=bob_id,
+                    email=f"bob_{bob_id.hex[:8]}@example.com",
+                    hashed_password="hashed_password",
+                    full_name="Bob Candidate",
+                )
+                db.add_all([user, bob_user])
 
                 candidate = CandidateProfile(
                     user_id=test_user_id,
@@ -129,13 +136,33 @@ async def test_document_tailoring_and_audit_real_postgres():
                 await db.refresh(job)
                 job_id = job.id
 
-            # 2. Test POST /api/v1/tailoring/generate
+            from app.core.security import create_access_token
+            auth_token = create_access_token(user_id=test_user_id, email=test_email)
+            auth_headers = {"Authorization": f"Bearer {auth_token}"}
+
+            generate_payload = {
+                "candidate_profile_id": str(candidate_profile_id),
+                "job_id": str(job_id),
+            }
+
+            # 2a. Unauthenticated request must return 401
+            unauth_resp = await client.post("/api/v1/tailoring/generate", json=generate_payload)
+            assert unauth_resp.status_code == 401
+
+            # 2b. Other authenticated user's token must return 403 Forbidden
+            other_token = create_access_token(user_id=bob_id, email=bob_user.email)
+            forbidden_resp = await client.post(
+                "/api/v1/tailoring/generate",
+                json=generate_payload,
+                headers={"Authorization": f"Bearer {other_token}"},
+            )
+            assert forbidden_resp.status_code == 403
+
+            # 2c. Owner's token succeeds
             resp = await client.post(
                 "/api/v1/tailoring/generate",
-                json={
-                    "candidate_profile_id": str(candidate_profile_id),
-                    "job_id": str(job_id),
-                },
+                json=generate_payload,
+                headers=auth_headers,
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -154,7 +181,7 @@ async def test_document_tailoring_and_audit_real_postgres():
                 "job_id": str(job_id),
                 "text_to_audit": "I have 5 years of experience deploying models with Kubernetes clusters.",
             }
-            audit_resp = await client.post("/api/v1/tailoring/audit", json=hallucinated_payload)
+            audit_resp = await client.post("/api/v1/tailoring/audit", json=hallucinated_payload, headers=auth_headers)
             assert audit_resp.status_code == 200
             audit_data = audit_resp.json()
 
@@ -169,7 +196,7 @@ async def test_document_tailoring_and_audit_real_postgres():
                 "job_id": str(job_id),
                 "text_to_audit": "I built machine learning APIs using Python, PyTorch, and FastAPI.",
             }
-            clean_audit_resp = await client.post("/api/v1/tailoring/audit", json=grounded_payload)
+            clean_audit_resp = await client.post("/api/v1/tailoring/audit", json=grounded_payload, headers=auth_headers)
             assert clean_audit_resp.status_code == 200
             clean_audit_data = clean_audit_resp.json()
 
@@ -188,5 +215,5 @@ async def test_document_tailoring_and_audit_real_postgres():
                     )
                 if job_id:
                     await db.execute(delete(Job).where(Job.id == job_id))
-                await db.execute(delete(User).where(User.id == test_user_id))
+                await db.execute(delete(User).where(User.id.in_([test_user_id, bob_id])))
                 await db.commit()

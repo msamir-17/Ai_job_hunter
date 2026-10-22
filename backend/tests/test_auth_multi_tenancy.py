@@ -100,3 +100,27 @@ async def test_cross_tenant_isolation():
         assert bob_profile["id"] != alice_profile_id
         assert bob_profile["headline"] != "Lead AI Architect"
         assert bob_profile["email"] == bob_email
+
+        # 8. Bob attempts to read Alice's job matches -> 403 Forbidden!
+        bob_matches_snoop = await client.get(
+            f"/api/v1/matching/candidate/{alice_profile_id}/matches",
+            headers=bob_headers,
+        )
+        assert bob_matches_snoop.status_code == 403
+
+        # 9. Bob attempts to trigger deterministic filtering on Alice's profile -> 403 Forbidden!
+        bob_filter_hack = await client.post(
+            "/api/v1/matching/deterministic/filter",
+            headers=bob_headers,
+            json={"candidate_profile_id": str(alice_profile_id)},
+        )
+        assert bob_filter_hack.status_code == 403
+
+        # 10. Bob attempts to trigger tailoring on Alice's profile -> 403 Forbidden!
+        bob_tailor_hack = await client.post(
+            "/api/v1/tailoring/generate",
+            headers=bob_headers,
+            json={"candidate_profile_id": str(alice_profile_id), "job_id": str(uuid.uuid4())},
+        )
+        assert bob_tailor_hack.status_code == 403
+

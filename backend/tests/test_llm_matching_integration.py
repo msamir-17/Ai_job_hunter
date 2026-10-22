@@ -135,13 +135,24 @@ async def test_llm_matching_real_postgres():
                 assert "Docker" in persisted.missing_skills
                 assert persisted.analysis_summary == "Strong candidate with proven PyTorch and Python background."
 
-            # 4. Test FastAPI HTTP Endpoint POST /api/v1/matching/llm/analyze
+            from app.core.security import create_access_token
+            auth_token = create_access_token(user_id=test_user_id, email=test_email)
+            auth_headers = {"Authorization": f"Bearer {auth_token}"}
+
+            analyze_payload = {
+                "candidate_profile_id": str(candidate_profile_id),
+                "job_id": str(job_ids[0]),
+            }
+
+            # 4a. Unauthenticated request must return 401
+            unauth_resp = await client.post("/api/v1/matching/llm/analyze", json=analyze_payload)
+            assert unauth_resp.status_code == 401
+
+            # 4b. Authenticated request succeeds
             resp = await client.post(
                 "/api/v1/matching/llm/analyze",
-                json={
-                    "candidate_profile_id": str(candidate_profile_id),
-                    "job_id": str(job_ids[0]),
-                },
+                json=analyze_payload,
+                headers=auth_headers,
             )
             assert resp.status_code == 200
             data = resp.json()
@@ -157,6 +168,7 @@ async def test_llm_matching_real_postgres():
                     "limit": 5,
                     "min_vector_score": 0.5,
                 },
+                headers=auth_headers,
             )
             assert batch_resp.status_code == 200
             batch_data = batch_resp.json()

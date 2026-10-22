@@ -74,3 +74,14 @@ class TestResumeParserService:
         empty_docx_bytes = create_sample_docx_bytes([])
         with pytest.raises(ValueError, match="contains no readable text"):
             parse_resume_file("empty.docx", empty_docx_bytes)
+
+    def test_parse_spoofed_pdf_magic_bytes(self):
+        spoofed_content = b"Not a real PDF file text content"
+        with pytest.raises(ValueError, match="does not match PDF format signature"):
+            parse_resume_file("fake_resume.pdf", spoofed_content)
+
+    def test_parse_spoofed_docx_magic_bytes(self):
+        spoofed_content = b"Not a real DOCX zip content"
+        with pytest.raises(ValueError, match="does not match DOCX format signature"):
+            parse_resume_file("fake_resume.docx", spoofed_content)
+

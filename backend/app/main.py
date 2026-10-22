@@ -10,6 +10,7 @@ from app.api.tailoring import router as tailoring_router
 from app.api.applications import router as applications_router
 from app.api.feedback import router as feedback_router
 from app.api.screening_qa import router as screening_qa_router
+from app.api.settings import router as settings_router
 
 app = FastAPI(
     title="AI Job Hunter Co-Pilot API",
@@ -27,6 +28,7 @@ app.include_router(tailoring_router)
 app.include_router(applications_router)
 app.include_router(feedback_router)
 app.include_router(screening_qa_router)
+app.include_router(settings_router)
 
 
 # Configure CORS for frontend access
@@ -38,14 +40,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Depends
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.api.deps import get_current_user
+from app.database import get_db
+from app.models import User
+
 @app.get("/health", tags=["Health"])
 async def health_check():
-    """Health check endpoint to verify backend operational status."""
+    """Minimal public health check returning operational status."""
+    return {"status": "ok"}
+
+@app.get("/api/v1/admin/health", tags=["Admin & Diagnostics"])
+async def admin_health_check(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Detailed operational diagnostics for authenticated users."""
+    db_status = "connected"
+    try:
+        await db.execute(select(1))
+    except Exception as e:
+        db_status = f"unhealthy: {str(e)}"
+
     return {
         "status": "ok",
         "service": "AI Job Hunter Co-Pilot API",
         "environment": settings.ENVIRONMENT,
         "active_llm_provider": settings.ACTIVE_LLM_PROVIDER,
+        "database": db_status,
+        "authenticated_user": current_user.email,
     }
 
 if __name__ == "__main__":

@@ -184,7 +184,21 @@ async def test_vector_similarity_search_real_postgres():
                 "only_passed_deterministic": False,
                 "min_similarity_threshold": 0.0,
             }
-            resp = await client.post("/api/v1/matching/vector/search", json=endpoint_payload)
+
+            from app.core.security import create_access_token
+            auth_token = create_access_token(user_id=test_user_id, email=test_email)
+            auth_headers = {"Authorization": f"Bearer {auth_token}"}
+
+            # 4a. Unauthenticated returns 401
+            unauth_resp = await client.post("/api/v1/matching/vector/search", json=endpoint_payload)
+            assert unauth_resp.status_code == 401
+
+            # 4b. Authenticated returns 200
+            resp = await client.post(
+                "/api/v1/matching/vector/search",
+                json=endpoint_payload,
+                headers=auth_headers,
+            )
             assert resp.status_code == 200
             data = resp.json()
 

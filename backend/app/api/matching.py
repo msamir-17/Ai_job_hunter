@@ -6,9 +6,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.api.deps import get_current_user
 from app.database import get_db
 from app.llm import BaseLLMProvider, get_llm_provider
-from app.models import CandidateProfile, Job, JobMatch
+from app.models import CandidateProfile, Job, JobMatch, User
 from app.schemas.matching import (
     AnalyzeJobMatchRequest,
     BatchAnalyzeMatchesRequest,
@@ -33,6 +34,28 @@ from app.services.vector_search import VectorSearchService
 router = APIRouter(prefix="/api/v1/matching", tags=["Matching & Filtering"])
 
 
+async def _verify_candidate_ownership(
+    db: AsyncSession,
+    candidate_profile_id: UUID,
+    current_user: User,
+) -> CandidateProfile:
+    """Verify that candidate profile exists and is owned by authenticated user."""
+    stmt = select(CandidateProfile).where(CandidateProfile.id == candidate_profile_id)
+    res = await db.execute(stmt)
+    candidate = res.scalar_one_or_none()
+    if not candidate:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"CandidateProfile with ID {candidate_profile_id} not found.",
+        )
+    if candidate.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access forbidden: You do not have permission to access this candidate profile.",
+        )
+    return candidate
+
+
 @router.post(
     "/deterministic/filter",
     response_model=BatchFilterResponse,
@@ -42,8 +65,10 @@ router = APIRouter(prefix="/api/v1/matching", tags=["Matching & Filtering"])
 )
 async def filter_jobs_deterministically(
     payload: FilterJobRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BatchFilterResponse:
+    await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
     service = DeterministicFilterService(config=payload.config)
 
     try:
@@ -81,8 +106,10 @@ async def filter_jobs_deterministically(
 )
 async def search_jobs_by_vector(
     payload: VectorSearchRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> VectorSearchResponse:
+    await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
     service = VectorSearchService(db=db)
     try:
         results = await service.search_and_persist_matches(payload)
@@ -108,9 +135,11 @@ async def search_jobs_by_vector(
 )
 async def analyze_single_job_match(
     payload: AnalyzeJobMatchRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     provider: BaseLLMProvider = Depends(get_llm_provider),
 ) -> JobMatchAnalysisResult:
+    await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
     service = LLMMatchingService(db=db, provider=provider)
     try:
         result = await service.analyze_single_match(
@@ -136,9 +165,11 @@ async def analyze_single_job_match(
 )
 async def analyze_batch_job_matches(
     payload: BatchAnalyzeMatchesRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     provider: BaseLLMProvider = Depends(get_llm_provider),
 ) -> BatchAnalyzeMatchesResponse:
+    await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
     service = LLMMatchingService(db=db, provider=provider)
     try:
         results = await service.analyze_batch_matches(
@@ -170,9 +201,11 @@ async def analyze_batch_job_matches(
 )
 async def run_pipeline_for_job_match(
     payload: PipelineRunRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
     provider: BaseLLMProvider = Depends(get_llm_provider),
 ) -> PipelineRunResponse:
+    await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
     final_state = await run_matching_pipeline(
         db=db,
         candidate_profile_id=payload.candidate_profile_id,
@@ -225,16 +258,11 @@ async def get_candidate_job_matches(
     status_filter: str | None = Query(default=None, alias="status", description="Filter by status: 'shortlisted', 'review', or 'rejected'"),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[dict[str, Any]]:
-    # Verify candidate exists
-    stmt_candidate = select(CandidateProfile).where(CandidateProfile.id == candidate_profile_id)
-    res_candidate = await db.execute(stmt_candidate)
-    if not res_candidate.scalar_one_or_none():
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"CandidateProfile with ID {candidate_profile_id} not found.",
-        )
+    # Verify candidate exists and is owned by current user
+    await _verify_candidate_ownership(db, candidate_profile_id, current_user)
 
     stmt_matches = (
         select(JobMatch)
@@ -281,17 +309,11 @@ async def get_candidate_job_matches(
 )
 async def evaluate_matches_with_jev(
     payload: BatchJevEvalRequest,
+    current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> BatchJevEvalResponse:
-    # 1. Fetch CandidateProfile
-    stmt_candidate = select(CandidateProfile).where(CandidateProfile.id == payload.candidate_profile_id)
-    res_candidate = await db.execute(stmt_candidate)
-    candidate = res_candidate.scalar_one_or_none()
-    if not candidate:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"CandidateProfile with ID {payload.candidate_profile_id} not found.",
-        )
+    # 1. Fetch CandidateProfile and verify ownership
+    candidate = await _verify_candidate_ownership(db, payload.candidate_profile_id, current_user)
 
     # 2. Fetch Jobs
     if payload.job_ids:
@@ -336,4 +358,5 @@ async def evaluate_matches_with_jev(
         passed_count=passed_count,
         results=results,
     )
+
 

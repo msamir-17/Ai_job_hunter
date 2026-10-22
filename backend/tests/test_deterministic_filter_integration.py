@@ -99,6 +99,10 @@ async def test_deterministic_filtering_real_postgres():
                 await db.refresh(j3)
                 job_ids = [j1.id, j2.id, j3.id]
 
+            from app.core.security import create_access_token
+            auth_token = create_access_token(user_id=test_user_id, email=test_email)
+            auth_headers = {"Authorization": f"Bearer {auth_token}"}
+
             # 3. Call POST /api/v1/matching/deterministic/filter
             payload = {
                 "candidate_profile_id": str(candidate_profile_id),
@@ -108,7 +112,16 @@ async def test_deterministic_filtering_real_postgres():
                 },
             }
 
-            filter_resp = await async_client.post("/api/v1/matching/deterministic/filter", json=payload)
+            # 3a. Unauthenticated request returns 401
+            unauth_resp = await async_client.post("/api/v1/matching/deterministic/filter", json=payload)
+            assert unauth_resp.status_code == 401
+
+            # 3b. Authenticated request succeeds
+            filter_resp = await async_client.post(
+                "/api/v1/matching/deterministic/filter",
+                json=payload,
+                headers=auth_headers,
+            )
             assert filter_resp.status_code == 200, f"Filter failed: {filter_resp.text}"
             res_data = filter_resp.json()
 
@@ -134,7 +147,8 @@ async def test_deterministic_filtering_real_postgres():
 
             # 4. Call GET /api/v1/matching/candidate/{candidate_profile_id}/matches
             get_matches_resp = await async_client.get(
-                f"/api/v1/matching/candidate/{candidate_profile_id}/matches"
+                f"/api/v1/matching/candidate/{candidate_profile_id}/matches",
+                headers=auth_headers,
             )
             assert get_matches_resp.status_code == 200
             matches_data = get_matches_resp.json()
@@ -142,7 +156,8 @@ async def test_deterministic_filtering_real_postgres():
 
             # Query with status filter = "shortlisted"
             get_shortlisted_resp = await async_client.get(
-                f"/api/v1/matching/candidate/{candidate_profile_id}/matches?status=shortlisted"
+                f"/api/v1/matching/candidate/{candidate_profile_id}/matches?status=shortlisted",
+                headers=auth_headers,
             )
             assert get_shortlisted_resp.status_code == 200
             shortlisted_data = get_shortlisted_resp.json()
@@ -150,7 +165,11 @@ async def test_deterministic_filtering_real_postgres():
             assert all(m["status"] == "shortlisted" for m in shortlisted_data)
 
             # 5. Test idempotency: re-running filter updates existing JobMatch records without duplicate errors
-            rerun_resp = await async_client.post("/api/v1/matching/deterministic/filter", json=payload)
+            rerun_resp = await async_client.post(
+                "/api/v1/matching/deterministic/filter",
+                json=payload,
+                headers=auth_headers,
+            )
             assert rerun_resp.status_code == 200
 
         finally:
