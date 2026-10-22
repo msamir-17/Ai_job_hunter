@@ -90,3 +90,16 @@ export async function downloadATSTailoredResumePdf(
   window.URL.revokeObjectURL(downloadUrl);
 }
 
+export async function tailorCustomJD(
+  payload: import('../types/tailoring').CustomJDTailoringRequest
+): Promise<import('../types/tailoring').CustomJDTailoringResponse> {
+  return apiClient<import('../types/tailoring').CustomJDTailoringResponse>(
+    '/api/v1/tailoring/custom-jd/tailor',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  );
+}
+
+

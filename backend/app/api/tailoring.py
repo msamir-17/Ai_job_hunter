@@ -1,5 +1,6 @@
 import json
 import re
+import uuid
 from pathlib import Path
 from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,20 +8,24 @@ from fastapi.responses import HTMLResponse, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.deps import get_current_user_optional
 from app.core.archetypes import list_available_archetypes
 from app.database import get_db
 from app.llm import BaseLLMProvider, get_llm_provider
-from app.models import CandidateProfile, Job
+from app.models import CandidateProfile, Job, JobMatch, User
 from app.schemas.archetype import ArchetypeConfig
 from app.schemas.ats_resume import ATSTailoredResume
 from app.schemas.candidate_facts import CandidateTruthVault
 from app.schemas.tailoring import (
     AntiHallucinationAuditResult,
     ATSTailoringRequest,
+    CustomJDTailoringRequest,
+    CustomJDTailoringResponse,
     DocumentAuditRequest,
     DocumentTailoringRequest,
     DocumentTailoringResponse,
 )
+from app.services.custom_jd_service import CustomJDTailoringService
 from app.services.document_tailoring import DocumentTailoringService
 from app.services.fact_selector import FactSelectorEngine
 from app.services.pdf_renderer import render_ats_resume_html
@@ -228,4 +233,73 @@ async def convert_ats_resume_json_to_pdf(
             "Access-Control-Expose-Headers": "Content-Disposition",
         },
     )
+
+
+@router.post(
+    "/custom-jd/tailor",
+    response_model=CustomJDTailoringResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Tailor resume, audit gaps, and generate cold outreach for external raw JD",
+    description="Parses external JD, runs recruiter 6-sec red flag scan and ATS score, assembles 1-page ATS resume, and generates 4-line hiring manager cold message.",
+)
+async def tailor_custom_external_jd(
+    payload: CustomJDTailoringRequest,
+    current_user: User | None = Depends(get_current_user_optional),
+    db: AsyncSession = Depends(get_db),
+) -> CustomJDTailoringResponse:
+    # 1. Fetch CandidateProfile (Authenticated user or seeded profile)
+    candidate: CandidateProfile | None = None
+    if current_user:
+        stmt_cand = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
+        candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
+
+    if not candidate:
+        stmt_seed = select(CandidateProfile).limit(1)
+        candidate = (await db.execute(stmt_seed)).scalar_one_or_none()
+
+    if not candidate:
+        candidate = CandidateProfile(
+            headline="Lead AI Architect & Systems Developer",
+            summary="Experienced in FastAPI, pgvector RAG systems, and LLM evaluation benchmarks.",
+            skills=["Python", "FastAPI", "PostgreSQL", "PyTorch", "Docker"],
+        )
+
+    vault = _load_truth_vault(candidate)
+
+    # 2. Execute Recruiter Tailoring & Gap Audit
+    response = CustomJDTailoringService.tailor_custom_jd(
+        vault=vault,
+        request=payload,
+    )
+
+    # 3. Optional: Persist to Application Tracker
+    if payload.save_to_tracker:
+        new_job = Job(
+            source="custom_paste",
+            external_id=f"custom_{current_user.id if current_user else 'guest'}_{uuid.uuid4().hex[:8]}",
+            title=response.job_title,
+            company=response.company_name,
+            description_raw=payload.job_description,
+            skills_required=response.recruiter_audit.gap_table and [g.missing_tech for g in response.recruiter_audit.gap_table] or [],
+            is_active=True,
+        )
+        db.add(new_job)
+        await db.flush()
+
+        # Link JobMatch if candidate exists in DB
+        if candidate and candidate.id:
+            match = JobMatch(
+                candidate_profile_id=candidate.id,
+                job_id=new_job.id,
+                overall_score=response.recruiter_audit.ats_score / 10.0,
+                status="saved",
+            )
+            db.add(match)
+
+        await db.commit()
+        await db.refresh(new_job)
+        response.job_id = new_job.id
+
+    return response
+
 

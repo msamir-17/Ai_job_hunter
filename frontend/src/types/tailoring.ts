@@ -102,3 +102,45 @@ export interface ATSTailoredResume {
   education: string[];
   budget_audit: OnePageBudgetAudit;
 }
+
+export interface RecruiterAuditGapItem {
+  missing_tech: string;
+  missing_action_verbs: string;
+  recommended_action: string;
+}
+
+export interface RecruiterAuditResult {
+  ats_score: number;
+  shortlist_chance: 'High' | 'Medium' | 'Low' | string;
+  gap_table: RecruiterAuditGapItem[];
+  hard_truths: string[];
+  red_flags: string[];
+  actionable_suggestions: string[];
+  recruiter_notes: string;
+}
+
+export interface ColdOutreachMessage {
+  subject: string;
+  body: string;
+  target_platform: string;
+}
+
+export interface CustomJDTailoringRequest {
+  job_title?: string;
+  company_name?: string;
+  job_description: string;
+  archetype_id?: string;
+  language_tone?: 'hinglish' | 'english';
+  save_to_tracker?: boolean;
+}
+
+export interface CustomJDTailoringResponse {
+  job_title: string;
+  company_name: string;
+  tailored_resume: ATSTailoredResume;
+  cover_letter?: string | null;
+  recruiter_audit: RecruiterAuditResult;
+  cold_outreach: ColdOutreachMessage;
+  job_id?: string | null;
+}
+

@@ -102,3 +102,49 @@ class ATSTailoringRequest(BaseModel):
         default=None,
         description="Optional forced archetype lens ('genai', 'swe', 'ai_eng', 'data'). Auto-detected if omitted.",
     )
+
+
+# -------------------------------------------------------------------------
+# Recruiter & ATS Gap Audit + Custom External JD Tailoring Schemas
+# -------------------------------------------------------------------------
+
+class RecruiterAuditGapItem(BaseModel):
+    missing_tech: str = Field(description="Core technical skill or tool from JD missing or weak in candidate profile")
+    missing_action_verbs: str = Field(description="Action verbs and industry keywords recommended to inject")
+    recommended_action: str = Field(description="Specific actionable advice to bridge this gap")
+
+
+class RecruiterAuditResult(BaseModel):
+    ats_score: float = Field(ge=0.0, le=10.0, description="Strict ATS match score out of 10")
+    shortlist_chance: str = Field(description="'High', 'Medium', or 'Low' shortlist probability")
+    gap_table: list[RecruiterAuditGapItem] = Field(default_factory=list, description="Structured 3-column gap finder table")
+    hard_truths: list[str] = Field(default_factory=list, description="Brutal honest recruiter feedback on why this resume might be skipped")
+    red_flags: list[str] = Field(default_factory=list, description="Detected fresher clichés, missing metrics, or format red flags")
+    actionable_suggestions: list[str] = Field(default_factory=list, description="Exact rewrites and keyword modifications to maximize ATS score")
+    recruiter_notes: str = Field(default="", description="Brutally honest coaching summary in Hinglish or English")
+
+
+class ColdOutreachMessage(BaseModel):
+    subject: str = Field(description="Email or InMail subject line")
+    body: str = Field(description="Punchy, confident 4-line cold outreach to hiring manager")
+    target_platform: str = Field(default="LinkedIn", description="'LinkedIn' or 'Email'")
+
+
+class CustomJDTailoringRequest(BaseModel):
+    job_title: str | None = Field(default=None, description="Target job title (auto-extracted from JD if omitted)")
+    company_name: str | None = Field(default=None, description="Target company name (auto-extracted if omitted)")
+    job_description: str = Field(..., min_length=20, description="Raw pasted job description text or JD link")
+    archetype_id: str | None = Field(default=None, description="Optional archetype override ('genai', 'swe', 'ai_eng', 'data'). Auto-detected if omitted.")
+    language_tone: str = Field(default="hinglish", description="Recruiter feedback language: 'hinglish' or 'english'")
+    save_to_tracker: bool = Field(default=False, description="Whether to persist this custom job into the applications tracker")
+
+
+class CustomJDTailoringResponse(BaseModel):
+    job_title: str
+    company_name: str
+    tailored_resume: dict = Field(description="Complete ATSTailoredResume structure")
+    cover_letter: str | None = None
+    recruiter_audit: RecruiterAuditResult
+    cold_outreach: ColdOutreachMessage
+    job_id: UUID | None = None
+

@@ -17,11 +17,13 @@ import {
   Award,
   ThumbsDown,
   RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 import { Job } from '../types/job';
 import { CandidateProfileResponse } from '../types/candidateProfile';
 import { PipelineRunResponse } from '../types/matching';
 import { FeedbackResponse } from '../types/feedback';
+import { CustomJDTailoringResponse } from '../types/tailoring';
 import { listJobs, ingestJobs } from '../api/jobs';
 import { getActiveCandidateProfile } from '../api/candidateProfile';
 import {
@@ -34,6 +36,7 @@ import { MatchScoreBadge } from '../components/matching/MatchScoreBadge';
 import { SkillPillList } from '../components/matching/SkillPillList';
 import { MatchDetailModal } from '../components/matching/MatchDetailModal';
 import { TailoringWorkspaceModal } from '../components/tailoring/TailoringWorkspaceModal';
+import { CustomJDPasteModal } from '../components/tailoring/CustomJDPasteModal';
 import { DiscardReasonModal } from '../components/matching/DiscardReasonModal';
 import { WorkerQueueMonitor } from '../components/matching/WorkerQueueMonitor';
 
@@ -103,6 +106,25 @@ export const JobDiscoveryPage: React.FC = () => {
   const [selectedJobForModal, setSelectedJobForModal] = useState<Job | null>(null);
   const [isMatchModalOpen, setIsMatchModalOpen] = useState<boolean>(false);
   const [isTailorModalOpen, setIsTailorModalOpen] = useState<boolean>(false);
+  const [isCustomJDModalOpen, setIsCustomJDModalOpen] = useState<boolean>(false);
+  const [customTailoringData, setCustomTailoringData] = useState<CustomJDTailoringResponse | null>(null);
+
+  const handleCustomJDTailored = (data: CustomJDTailoringResponse) => {
+    const virtualJob: Job = {
+      id: data.job_id || `custom_${Date.now()}`,
+      title: data.job_title,
+      company: data.company_name,
+      description: data.recruiter_audit.recruiter_notes || 'Custom pasted job description',
+      location: 'External / Remote',
+      is_remote: true,
+      source: 'custom_paste',
+      requirements: (data.recruiter_audit.gap_table || []).map((g) => g.recommended_action),
+      created_at: new Date().toISOString(),
+    };
+    setSelectedJobForModal(virtualJob);
+    setCustomTailoringData(data);
+    setIsTailorModalOpen(true);
+  };
 
   useEffect(() => {
     loadCandidateProfile();
@@ -384,8 +406,16 @@ export const JobDiscoveryPage: React.FC = () => {
           </p>
         </div>
 
-        {/* Ingestion Actions */}
+        {/* Ingestion & Custom JD Actions */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsCustomJDModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
+            title="Paste any external Job Description to tailor resume, audit gaps, and generate cold message"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            + Paste External JD
+          </button>
           <button
             onClick={handleLoadJobs}
             disabled={isIngesting || isLoadingJobs}
@@ -833,12 +863,23 @@ export const JobDiscoveryPage: React.FC = () => {
           job={selectedJobForModal}
           applicationId={trackedJobIds[selectedJobForModal.id] || null}
           isOpen={isTailorModalOpen}
-          onClose={() => setIsTailorModalOpen(false)}
+          initialCustomData={customTailoringData}
+          onClose={() => {
+            setIsTailorModalOpen(false);
+            setCustomTailoringData(null);
+          }}
           onSavedToApplication={() => {
             if (profile) loadUserApplications(profile.user_id);
           }}
         />
       )}
+
+      {/* Custom External JD Paste Modal */}
+      <CustomJDPasteModal
+        isOpen={isCustomJDModalOpen}
+        onClose={() => setIsCustomJDModalOpen(false)}
+        onSuccess={handleCustomJDTailored}
+      />
 
       {/* Discard Reason Modal */}
       {selectedJobForDiscard && (

@@ -13,6 +13,10 @@ import {
   Download,
   Layers,
   FileText,
+  Sparkles,
+  Send,
+  Table,
+  AlertTriangle,
 } from 'lucide-react';
 import { Job } from '../../types/job';
 import {
@@ -20,6 +24,9 @@ import {
   AntiHallucinationAuditResult,
   ATSTailoredResume,
   ArchetypeConfig,
+  CustomJDTailoringResponse,
+  RecruiterAuditResult,
+  ColdOutreachMessage,
 } from '../../types/tailoring';
 import {
   generateTailoredDocuments,
@@ -37,6 +44,7 @@ interface TailoringWorkspaceModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSavedToApplication?: () => void;
+  initialCustomData?: CustomJDTailoringResponse | null;
 }
 
 export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = ({
@@ -46,11 +54,23 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   isOpen,
   onClose,
   onSavedToApplication,
+  initialCustomData,
 }) => {
-  const [activeTab, setActiveTab] = useState<'ats_resume' | 'resume' | 'cover_letter'>('ats_resume');
+  const [activeTab, setActiveTab] = useState<
+    'ats_resume' | 'recruiter_audit' | 'cold_outreach' | 'resume' | 'cover_letter'
+  >(initialCustomData ? 'recruiter_audit' : 'ats_resume');
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [atsError, setAtsError] = useState<string | null>(null);
+
+  // Recruiter Audit & Outreach state
+  const [recruiterAudit, setRecruiterAudit] = useState<RecruiterAuditResult | null>(
+    initialCustomData?.recruiter_audit || null
+  );
+  const [coldOutreach, setColdOutreach] = useState<ColdOutreachMessage | null>(
+    initialCustomData?.cold_outreach || null
+  );
+  const [copiedOutreach, setCopiedOutreach] = useState<boolean>(false);
 
   // ATS Resume Studio state
   const [atsResume, setAtsResume] = useState<ATSTailoredResume | null>(null);
@@ -77,11 +97,18 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   useEffect(() => {
     if (isOpen) {
       loadArchetypes();
-      if (!atsResume && !isGeneratingATS) {
+      if (initialCustomData) {
+        setAtsResume(initialCustomData.tailored_resume);
+        setRecruiterAudit(initialCustomData.recruiter_audit);
+        setColdOutreach(initialCustomData.cold_outreach);
+        if (initialCustomData.cover_letter) {
+          setCoverLetterText(initialCustomData.cover_letter);
+        }
+      } else if (!atsResume && !isGeneratingATS) {
         handleGenerateATS(null);
       }
     }
-  }, [isOpen]);
+  }, [isOpen, initialCustomData]);
 
   // Lazy-load legacy LLM drafts only when switching to Resume Bullets or Cover Letter
   useEffect(() => {
@@ -391,6 +418,32 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
               <FileText className="w-3.5 h-3.5" />
               ATS Resume (1-Page)
             </button>
+            {recruiterAudit && (
+              <button
+                onClick={() => setActiveTab('recruiter_audit')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  activeTab === 'recruiter_audit'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Recruiter Audit ({recruiterAudit.ats_score.toFixed(1)}/10)
+              </button>
+            )}
+            {coldOutreach && (
+              <button
+                onClick={() => setActiveTab('cold_outreach')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  activeTab === 'cold_outreach'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                }`}
+              >
+                <Send className="w-3.5 h-3.5" />
+                4-Line Cold Outreach
+              </button>
+            )}
             <button
               onClick={() => setActiveTab('resume')}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
@@ -656,6 +709,180 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
                   </div>
                 </div>
               ) : null}
+            </div>
+          )}
+
+          {/* TAB: Recruiter & ATS Gap Audit */}
+          {activeTab === 'recruiter_audit' && recruiterAudit && (
+            <div className="space-y-5 animate-fade-in">
+              {/* Hero Score Banner */}
+              <div className="p-4 bg-gradient-to-r from-indigo-500/10 via-purple-500/10 to-blue-500/10 border border-indigo-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-2xl font-black text-indigo-700">
+                      {recruiterAudit.ats_score.toFixed(1)} / 10
+                    </span>
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                        recruiterAudit.shortlist_chance === 'High'
+                          ? 'bg-emerald-100 text-emerald-800'
+                          : recruiterAudit.shortlist_chance === 'Medium'
+                          ? 'bg-amber-100 text-amber-800'
+                          : 'bg-rose-100 text-rose-800'
+                      }`}
+                    >
+                      {recruiterAudit.shortlist_chance} Shortlist Probability
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600">
+                    Evaluated against 6-second technical recruiter screening standards & strict ATS parsers.
+                  </p>
+                </div>
+                <div className="text-xs text-slate-500 text-right">
+                  <span className="font-semibold text-emerald-700">Grounded to verified profile facts</span> • Zero fabrication
+                </div>
+              </div>
+
+              {/* Recruiter Coaching Critique */}
+              {recruiterAudit.recruiter_notes && (
+                <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-2">
+                    <span>🎯 Recruiter Coach Critique</span>
+                    <span className="text-[10px] font-normal bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded border border-indigo-200">
+                      Honest & Direct
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-700 leading-relaxed font-sans">
+                    {recruiterAudit.recruiter_notes}
+                  </p>
+                </div>
+              )}
+
+              {/* 3-Column Gap Finder Table */}
+              {recruiterAudit.gap_table && recruiterAudit.gap_table.length > 0 && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                      <Table className="w-4 h-4 text-indigo-600" />
+                      The Gap Finder Table (Missing Requirements vs Strategy)
+                    </h4>
+                    <span className="text-[11px] text-slate-400">
+                      {recruiterAudit.gap_table.length} core gaps analyzed
+                    </span>
+                  </div>
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-100 text-slate-700 font-semibold border-b border-slate-200">
+                        <tr>
+                          <th className="py-2.5 px-3.5 w-1/4">Missing Tech / Tools</th>
+                          <th className="py-2.5 px-3.5 w-1/3">Recommended Action Verbs</th>
+                          <th className="py-2.5 px-3.5">Actionable Bridge Strategy</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 text-slate-800">
+                        {recruiterAudit.gap_table.map((row, idx) => (
+                          <tr key={idx} className="hover:bg-slate-50/50">
+                            <td className="py-2.5 px-3.5 font-medium text-rose-600">
+                              <span className="inline-block bg-rose-50 border border-rose-200 px-2 py-0.5 rounded text-[11px]">
+                                {row.missing_tech}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3.5 font-mono text-[11px] text-indigo-600">
+                              {row.missing_action_verbs}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-xs text-slate-600 leading-relaxed">
+                              {row.recommended_action}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* 6-Second Red Flag Scan */}
+              {recruiterAudit.red_flags && recruiterAudit.red_flags.length > 0 && (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
+                  <h5 className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-600" />
+                    6-Second Recruiter Red Flags Detected:
+                  </h5>
+                  <ul className="space-y-1 pl-4 list-disc text-xs text-amber-800">
+                    {recruiterAudit.red_flags.map((flag, idx) => (
+                      <li key={idx}>{flag}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Actionable Suggestions */}
+              {recruiterAudit.actionable_suggestions && (
+                <div className="space-y-2">
+                  <h5 className="text-xs font-bold text-slate-900">
+                    Key Steps to Maximize Shortlist Probability:
+                  </h5>
+                  <ul className="space-y-1.5 text-xs text-slate-700">
+                    {recruiterAudit.actionable_suggestions.map((sug, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-indigo-600 font-bold">•</span>
+                        <span>{sug}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB: 4-Line Cold Outreach Generator */}
+          {activeTab === 'cold_outreach' && coldOutreach && (
+            <div className="space-y-4 animate-fade-in">
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-bold text-indigo-950">
+                    Hiring Manager Direct Outreach (4-Line High Conversion Pitch)
+                  </div>
+                  <p className="text-[11px] text-indigo-700">
+                    Ready to send via LinkedIn message or email. Confident tone, company-tailored, zero desperation.
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${coldOutreach.subject}\n\n${coldOutreach.body}`);
+                    setCopiedOutreach(true);
+                    setTimeout(() => setCopiedOutreach(false), 2000);
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm"
+                >
+                  {copiedOutreach ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copiedOutreach ? 'Copied Full Message!' : 'Copy to Clipboard'}
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Subject Line:
+                </label>
+                <input
+                  type="text"
+                  readOnly
+                  value={coldOutreach.subject}
+                  className="w-full text-xs p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">
+                  Body Text (4-Line Structure):
+                </label>
+                <textarea
+                  readOnly
+                  rows={8}
+                  value={coldOutreach.body}
+                  className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200 rounded-lg text-slate-900 font-mono leading-relaxed"
+                />
+              </div>
             </div>
           )}
 
