@@ -16,11 +16,16 @@ import { ConfirmationBar } from '../components/resume/ConfirmationBar';
 import { ConfirmationSuccessView } from '../components/resume/ConfirmationSuccessView';
 import { Alert } from '../components/ui/Alert';
 import { RefreshCw } from 'lucide-react';
+import { AIConsentModal, hasUserGivenAIConsent } from '../components/common/AIConsentModal';
 
 export const ResumeReviewPage: React.FC = () => {
   const [currentProfile, setCurrentProfile] = useState<CandidateProfileResponse | null>(null);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+
+  // Privacy & AI Consent modal state
+  const [showConsentModal, setShowConsentModal] = useState<boolean>(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
 
   // Loading states
   const [isUploading, setIsUploading] = useState<boolean>(false);
@@ -37,6 +42,28 @@ export const ResumeReviewPage: React.FC = () => {
 
   // Success state
   const [confirmedProfile, setConfirmedProfile] = useState<CandidateProfileResponse | null>(null);
+
+  const handleUploadClick = async (file: File): Promise<void> => {
+    if (!hasUserGivenAIConsent()) {
+      setPendingFile(file);
+      setShowConsentModal(true);
+      return;
+    }
+    await handleUploadAndExtract(file);
+  };
+
+  const handleConsentAccepted = () => {
+    setShowConsentModal(false);
+    if (pendingFile) {
+      handleUploadAndExtract(pendingFile);
+      setPendingFile(null);
+    }
+  };
+
+  const handleConsentDismiss = () => {
+    setShowConsentModal(false);
+    setPendingFile(null);
+  };
 
   const handleUploadAndExtract = async (file: File) => {
     if (!currentProfile) return;
@@ -168,7 +195,7 @@ export const ResumeReviewPage: React.FC = () => {
           {/* Resume Upload Section */}
           <ResumeUploadSection
             candidateProfileId={currentProfile?.id || null}
-            onUploadAndExtract={handleUploadAndExtract}
+            onUploadAndExtract={handleUploadClick}
             isUploading={isUploading}
             error={uploadError}
             onErrorClear={() => setUploadError(null)}
@@ -253,6 +280,13 @@ export const ResumeReviewPage: React.FC = () => {
           )}
         </>
       )}
+
+      {/* AI Consent Modal */}
+      <AIConsentModal
+        isOpen={showConsentModal}
+        onClose={handleConsentDismiss}
+        onConsent={handleConsentAccepted}
+      />
     </div>
   );
 };

@@ -9,6 +9,8 @@ import { CandidateProfilePage } from './pages/CandidateProfilePage';
 import { JobDiscoveryPage } from './pages/JobDiscoveryPage';
 import { ApplicationsKanbanPage } from './pages/ApplicationsKanbanPage';
 
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
+
 const queryClient = new QueryClient();
 
 const App: React.FC = () => {
@@ -21,10 +23,38 @@ const App: React.FC = () => {
             <main className="flex-1">
             <Routes>
               <Route path="/" element={<Home />} />
-              <Route path="/profile" element={<CandidateProfilePage />} />
-              <Route path="/resume-review" element={<ResumeReviewPage />} />
-              <Route path="/jobs" element={<JobDiscoveryPage />} />
-              <Route path="/applications" element={<ApplicationsKanbanPage />} />
+              <Route
+                path="/profile"
+                element={
+                  <ProtectedRoute>
+                    <CandidateProfilePage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/resume-review"
+                element={
+                  <ProtectedRoute>
+                    <ResumeReviewPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/jobs"
+                element={
+                  <ProtectedRoute>
+                    <JobDiscoveryPage />
+                  </ProtectedRoute>
+                }
+              />
+              <Route
+                path="/applications"
+                element={
+                  <ProtectedRoute>
+                    <ApplicationsKanbanPage />
+                  </ProtectedRoute>
+                }
+              />
             </Routes>
           </main>
         </div>
