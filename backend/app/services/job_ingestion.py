@@ -103,6 +103,10 @@ class JobIngestionService:
                 description_raw=norm_job.raw_description,
                 skills_required=norm_job.skills_required,
                 url=norm_job.url,
+                source_url=norm_job.source_url or norm_job.url,
+                apply_url=norm_job.apply_url or norm_job.url,
+                posted_at=norm_job.posted_at,
+                dedup_key=norm_job.dedup_key,
                 embedding=None,  # Intentionally NULL for Step 4
             )
 

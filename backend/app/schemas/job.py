@@ -21,6 +21,10 @@ class NormalizedJob(BaseModel):
     raw_description: str | None = Field(default=None, description="Untrusted raw job description")
     skills_required: list[str] = Field(default_factory=list, description="Extracted required skills")
     url: str | None = Field(default=None, max_length=1024, description="Job application URL")
+    source_url: str | None = Field(default=None, max_length=1024, description="Job posting page URL")
+    apply_url: str | None = Field(default=None, max_length=1024, description="Direct application URL")
+    posted_at: datetime | None = Field(default=None, description="Original job posting timestamp")
+    dedup_key: str | None = Field(default=None, max_length=64, description="Deterministic deduplication key")
 
     @model_validator(mode="before")
     @classmethod
@@ -29,7 +33,7 @@ class NormalizedJob(BaseModel):
         if not isinstance(data, dict):
             return data
 
-        string_fields = ["source", "external_id", "title", "company", "location", "url"]
+        string_fields = ["source", "external_id", "title", "company", "location", "url", "source_url", "apply_url", "dedup_key"]
         for field in string_fields:
             if field in data and isinstance(data[field], str):
                 trimmed = data[field].strip()
@@ -107,6 +111,10 @@ class JobResponse(BaseModel):
     raw_description: str | None = Field(default=None, validation_alias="description_raw")
     skills_required: list[str] | None = None
     url: str | None = None
+    source_url: str | None = None
+    apply_url: str | None = None
+    posted_at: datetime | None = None
+    dedup_key: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

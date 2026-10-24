@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     MISTRAL_API_KEY: str = ""
     ADZUNA_APP_ID: str = ""
     ADZUNA_APP_KEY: str = ""
+    JOOBLE_API_KEY: str = ""
     
     # JEV System One Decision Model Settings
     JEV_API_KEY: str = ""

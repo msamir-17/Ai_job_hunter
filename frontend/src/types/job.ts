@@ -12,13 +12,16 @@ export interface Job {
   salary_max?: number | null;
   salary_currency?: string | null;
   url?: string | null;
+  source_url?: string | null;
+  apply_url?: string | null;
   posted_at?: string | null;
+  dedup_key?: string | null;
   created_at?: string;
   updated_at?: string;
 }
 
 export interface IngestionRequest {
-  source: 'manual' | 'remotive' | 'adzuna' | string;
+  source: 'manual' | 'remotive' | 'adzuna' | 'greenhouse' | 'lever' | 'jooble' | string;
   limit?: number;
   use_cache?: boolean;
 }

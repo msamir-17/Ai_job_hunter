@@ -256,6 +256,28 @@ class Job(Base):
         nullable=True,
     )
 
+    source_url: Mapped[str | None] = mapped_column(
+        String(1024),
+        nullable=True,
+    )
+
+    apply_url: Mapped[str | None] = mapped_column(
+        String(1024),
+        nullable=True,
+    )
+
+    posted_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    dedup_key: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
+
     embedding: Mapped[list[float] | None] = mapped_column(
         Vector(384),
         nullable=True,
