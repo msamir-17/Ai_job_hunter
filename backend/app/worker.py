@@ -14,7 +14,13 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters import AdzunaJobSourceAdapter, ManualJobSourceAdapter, RemotiveJobSourceAdapter
+from app.adapters import (
+    AdzunaJobSourceAdapter,
+    GreenhouseJobSourceAdapter,
+    LeverJobSourceAdapter,
+    ManualJobSourceAdapter,
+    RemotiveJobSourceAdapter,
+)
 from app.config import settings
 from app.database import AsyncSessionLocal, engine
 from app.models import Job, WorkerHeartbeat
@@ -92,6 +98,10 @@ class JobHunterWorkerDaemon:
                 else:
                     logger.debug("Skipping Adzuna adapter: missing credentials.")
                     continue
+            elif source_lower == "greenhouse":
+                adapter = GreenhouseJobSourceAdapter()
+            elif source_lower == "lever":
+                adapter = LeverJobSourceAdapter()
 
             if not adapter:
                 continue

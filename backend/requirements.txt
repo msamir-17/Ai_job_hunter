@@ -22,4 +22,6 @@ pyjwt>=2.8.0
 passlib[bcrypt]>=1.7.4
 bcrypt>=4.1.0
 reportlab>=4.0.0
+beautifulsoup4>=4.12.0
+pyyaml>=6.0.0
 

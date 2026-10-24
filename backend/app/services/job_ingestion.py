@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters.base import BaseJobSourceAdapter
 from app.models import Job
 from app.schemas.job import IngestionResult, NormalizedJob
+from app.services.dedup_service import generate_dedup_key
 
 
 class JobIngestionService:
@@ -106,7 +107,13 @@ class JobIngestionService:
                 source_url=norm_job.source_url or norm_job.url,
                 apply_url=norm_job.apply_url or norm_job.url,
                 posted_at=norm_job.posted_at,
-                dedup_key=norm_job.dedup_key,
+                dedup_key=norm_job.dedup_key
+                or generate_dedup_key(
+                    company=norm_job.company,
+                    title=norm_job.title,
+                    location=norm_job.location,
+                    is_remote=norm_job.is_remote,
+                ),
                 embedding=None,  # Intentionally NULL for Step 4
             )
 

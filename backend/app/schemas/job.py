@@ -136,3 +136,28 @@ class WorkerStatusResponse(BaseModel):
     queue_depths: dict[str, int]
     workers: list[WorkerHeartbeatResponse]
     active_worker_count: int
+
+
+class ExtractedJobData(BaseModel):
+    title: str = Field(..., description="Job title")
+    company: str = Field(..., description="Company name")
+    location: str | None = Field(default=None, description="Location if mentioned")
+    is_remote: bool = Field(default=False, description="Whether position is remote")
+    salary_min: int | None = Field(default=None, description="Minimum annual salary if mentioned")
+    salary_max: int | None = Field(default=None, description="Maximum annual salary if mentioned")
+    skills_required: list[str] = Field(default_factory=list, description="Key skills and requirements")
+    summary: str | None = Field(default=None, description="Clean summarized description of duties and qualifications")
+
+
+class ManualJobSubmissionRequest(BaseModel):
+    raw_text: str | None = Field(default=None, description="Pasted raw job description text")
+    url: str | None = Field(default=None, description="Job posting or ATS application URL")
+
+    @model_validator(mode="after")
+    def validate_inputs(self) -> "ManualJobSubmissionRequest":
+        has_text = bool(self.raw_text and self.raw_text.strip())
+        has_url = bool(self.url and self.url.strip())
+        if not has_text and not has_url:
+            raise ValueError("Either raw_text or url must be provided.")
+        return self
+

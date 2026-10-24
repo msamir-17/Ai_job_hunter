@@ -1,0 +1,22 @@
+# Supported direct ATS company boards for automated unblocked ingestion
+# Seed list of top tech companies with active public boards.
+
+greenhouse:
+  - stripe
+  - figma
+  - gitlab
+  - canonical
+  - elastic
+  - datadog
+  - cloudflare
+  - discord
+  - dropbox
+  - gusto
+  - brex
+  - coinbase
+  - anthropic
+
+lever:
+  - spotify
+  - palantir
+  - lever

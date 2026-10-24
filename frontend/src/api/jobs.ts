@@ -65,3 +65,16 @@ export async function triggerWorkerCycle(limit: number = 15, source: string = 'm
     method: 'POST',
   });
 }
+
+export interface ManualJobSubmissionPayload {
+  raw_text?: string | null;
+  url?: string | null;
+}
+
+export async function submitManualJob(payload: ManualJobSubmissionPayload): Promise<Job> {
+  return apiClient<Job>('/api/v1/jobs/manual', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+

@@ -4,18 +4,28 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.adapters import AdzunaJobSourceAdapter, ManualJobSourceAdapter, RemotiveJobSourceAdapter
+from app.adapters import (
+    AdzunaJobSourceAdapter,
+    GreenhouseJobSourceAdapter,
+    LeverJobSourceAdapter,
+    ManualJobSourceAdapter,
+    RemotiveJobSourceAdapter,
+)
 from app.database import get_db
+from app.llm import BaseLLMProvider, get_llm_provider
 from app.models import Job, WorkerHeartbeat
 from app.schemas.job import (
     IngestionRequest,
     IngestionResult,
     JobResponse,
+    ManualJobSubmissionRequest,
     WorkerHeartbeatResponse,
     WorkerStatusResponse,
 )
 from app.services.job_ingestion import JobIngestionService
 from app.services.job_queue import AsyncJobQueueWorker
+from app.services.manual_job_service import ManualJobService
+
 
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
 
@@ -25,7 +35,7 @@ router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
     response_model=IngestionResult,
     status_code=status.HTTP_200_OK,
     summary="Trigger job ingestion pipeline",
-    description="Fetches raw jobs from selected adapter ('manual', 'remotive', or 'adzuna'), normalizes, validates, and idempotently persists into PostgreSQL.",
+    description="Fetches raw jobs from selected adapter ('manual', 'remotive', 'adzuna', 'greenhouse', 'lever'), normalizes, validates, and idempotently persists into PostgreSQL.",
 )
 async def ingest_jobs(
     payload: IngestionRequest,
@@ -39,10 +49,14 @@ async def ingest_jobs(
         adapter = RemotiveJobSourceAdapter()
     elif source_key == "adzuna":
         adapter = AdzunaJobSourceAdapter()
+    elif source_key == "greenhouse":
+        adapter = GreenhouseJobSourceAdapter()
+    elif source_key == "lever":
+        adapter = LeverJobSourceAdapter()
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported job source adapter '{payload.source}'. Supported sources: 'manual', 'remotive', 'adzuna'.",
+            detail=f"Unsupported job source adapter '{payload.source}'. Supported sources: 'manual', 'remotive', 'adzuna', 'greenhouse', 'lever'.",
         )
 
     service = JobIngestionService(db)
@@ -70,7 +84,31 @@ async def ingest_jobs(
         )
 
 
+@router.post(
+    "/manual",
+    response_model=JobResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Submit custom job posting via text paste or URL",
+    description="Resolves direct ATS links (Greenhouse, Lever) or parses raw job text using structured LLM extraction.",
+)
+async def submit_manual_job(
+    payload: ManualJobSubmissionRequest,
+    db: AsyncSession = Depends(get_db),
+    llm_provider: BaseLLMProvider = Depends(get_llm_provider),
+) -> JobResponse:
+    service = ManualJobService(db, llm_provider)
+    try:
+        job = await service.ingest_manual_job(payload)
+        return JobResponse.model_validate(job)
+    except Exception as err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed processing manual job submission: {str(err)}",
+        )
+
+
 @router.get(
+
     "",
     response_model=list[JobResponse],
     status_code=status.HTTP_200_OK,
@@ -161,6 +199,10 @@ async def trigger_worker_cycle(
         adapter = RemotiveJobSourceAdapter()
     elif source_lower == "adzuna":
         adapter = AdzunaJobSourceAdapter()
+    elif source_lower == "greenhouse":
+        adapter = GreenhouseJobSourceAdapter()
+    elif source_lower == "lever":
+        adapter = LeverJobSourceAdapter()
     else:
         adapter = ManualJobSourceAdapter()
 

@@ -18,6 +18,8 @@ import {
   ThumbsDown,
   RotateCcw,
   Sparkles,
+  ExternalLink,
+  Plus,
 } from 'lucide-react';
 import { Job } from '../types/job';
 import { CandidateProfileResponse } from '../types/candidateProfile';
@@ -39,6 +41,9 @@ import { TailoringWorkspaceModal } from '../components/tailoring/TailoringWorksp
 import { CustomJDPasteModal } from '../components/tailoring/CustomJDPasteModal';
 import { DiscardReasonModal } from '../components/matching/DiscardReasonModal';
 import { WorkerQueueMonitor } from '../components/matching/WorkerQueueMonitor';
+import { QuickAddJobModal } from '../components/jobs/QuickAddJobModal';
+import { formatRelativeTime } from '../utils/formatTime';
+
 
 function getJobExperienceCategory(job: Job): 'entry' | 'mid' | 'senior' {
   const titleLower = (job.title || '').toLowerCase();
@@ -107,6 +112,7 @@ export const JobDiscoveryPage: React.FC = () => {
   const [isMatchModalOpen, setIsMatchModalOpen] = useState<boolean>(false);
   const [isTailorModalOpen, setIsTailorModalOpen] = useState<boolean>(false);
   const [isCustomJDModalOpen, setIsCustomJDModalOpen] = useState<boolean>(false);
+  const [isQuickAddModalOpen, setIsQuickAddModalOpen] = useState<boolean>(false);
   const [customTailoringData, setCustomTailoringData] = useState<CustomJDTailoringResponse | null>(null);
 
   const handleCustomJDTailored = (data: CustomJDTailoringResponse) => {
@@ -272,6 +278,16 @@ export const JobDiscoveryPage: React.FC = () => {
 
     try {
       try {
+        const resGreenhouse = await ingestJobs({ source: 'greenhouse', limit: 20 });
+        totalIngested += resGreenhouse.new_ingested;
+      } catch (err) {}
+
+      try {
+        const resLever = await ingestJobs({ source: 'lever', limit: 20 });
+        totalIngested += resLever.new_ingested;
+      } catch (err) {}
+
+      try {
         const resAdzuna = await ingestJobs({ source: 'adzuna', limit: 15 });
         totalIngested += resAdzuna.new_ingested;
       } catch (err) {}
@@ -408,6 +424,14 @@ export const JobDiscoveryPage: React.FC = () => {
 
         {/* Ingestion & Custom JD Actions */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsQuickAddModalOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all"
+            title="Import custom job via ATS URL (Greenhouse, Lever) or paste text"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            + Import Job / URL
+          </button>
           <button
             onClick={() => setIsCustomJDModalOpen(true)}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
@@ -620,9 +644,11 @@ export const JobDiscoveryPage: React.FC = () => {
             <span className="text-[11px] font-medium text-slate-500">Source:</span>
             {[
               { id: 'all', label: 'All' },
+              { id: 'greenhouse', label: 'Greenhouse' },
+              { id: 'lever', label: 'Lever' },
               { id: 'adzuna', label: 'Adzuna' },
               { id: 'remotive', label: 'Remotive' },
-              { id: 'manual', label: 'Sample Jobs' },
+              { id: 'manual', label: 'Manual/Direct' },
             ].map((src) => (
               <button
                 key={src.id}
@@ -705,6 +731,27 @@ export const JobDiscoveryPage: React.FC = () => {
                           {job.location || (job.is_remote ? 'Remote' : 'Location N/A')}
                         </span>
                       </div>
+
+                      {/* Freshness & Origin Timestamps */}
+                      <div className="flex flex-wrap items-center gap-2 mt-1.5 text-[11px] text-slate-500">
+                        {job.posted_at && (
+                          <span
+                            className="flex items-center gap-1 text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-medium border border-emerald-100"
+                            title={`Original posting date: ${new Date(job.posted_at).toLocaleString()}`}
+                          >
+                            <Clock className="w-3 h-3 text-emerald-600" />
+                            Posted {formatRelativeTime(job.posted_at)}
+                          </span>
+                        )}
+                        {job.created_at && (
+                          <span
+                            className="flex items-center gap-1 text-slate-500"
+                            title={`Ingested into system: ${new Date(job.created_at).toLocaleString()}`}
+                          >
+                            Added {formatRelativeTime(job.created_at)}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {match ? (
@@ -748,6 +795,32 @@ export const JobDiscoveryPage: React.FC = () => {
                 {/* Card Actions */}
                 <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
+                    {/* Direct ATS Apply / Source Links */}
+                    {(job.apply_url || job.url) && (
+                      <a
+                        href={job.apply_url || job.url || '#'}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white transition-all shadow-sm"
+                        title="Open direct job application page"
+                      >
+                        <span>Apply</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                    {job.source_url && job.source_url !== (job.apply_url || job.url) && (
+                      <a
+                        href={job.source_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-slate-800 transition-colors"
+                        title="View job posting details"
+                      >
+                        <span>Details</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+
                     {match ? (
                       <button
                         onClick={() => {
@@ -879,6 +952,13 @@ export const JobDiscoveryPage: React.FC = () => {
         isOpen={isCustomJDModalOpen}
         onClose={() => setIsCustomJDModalOpen(false)}
         onSuccess={handleCustomJDTailored}
+      />
+
+      {/* Quick Add Custom Job Modal (URL or Paste) */}
+      <QuickAddJobModal
+        isOpen={isQuickAddModalOpen}
+        onClose={() => setIsQuickAddModalOpen(false)}
+        onJobAdded={() => loadJobs()}
       />
 
       {/* Discard Reason Modal */}
