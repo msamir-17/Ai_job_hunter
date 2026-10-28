@@ -614,14 +614,6 @@ export const JobDiscoveryPage: React.FC = () => {
       {/* LINKEDIN SCREENSHOT 2: UNIFIED SEARCH & PILL FILTERS BAR                 */}
       {/* ========================================================================= */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3 relative">
-        {/* Click outside backdrop for dropdown popovers */}
-        {openDropdown && (
-          <div
-            className="fixed inset-0 z-20"
-            onClick={() => setOpenDropdown(null)}
-          />
-        )}
-
         {/* Top: LinkedIn Search Input with Location */}
         <div className="flex flex-col sm:flex-row items-center gap-2">
           {/* Keyword Search Input */}
@@ -636,6 +628,7 @@ export const JobDiscoveryPage: React.FC = () => {
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => setSearchQuery('')}
                 className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
               >
@@ -656,6 +649,7 @@ export const JobDiscoveryPage: React.FC = () => {
             />
             {locationQuery && (
               <button
+                type="button"
                 onClick={() => setLocationQuery('')}
                 className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
               >
@@ -666,12 +660,16 @@ export const JobDiscoveryPage: React.FC = () => {
         </div>
 
         {/* Filter Pills Row (LinkedIn Screenshot 2 Style) */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none relative z-25">
+        <div className="flex flex-wrap items-center gap-2 relative">
           {/* Pill 1: Source Filter Dropdown */}
-          <div className="relative shrink-0">
+          <div className="relative">
             <button
-              onClick={() => setOpenDropdown(openDropdown === 'source' ? null : 'source')}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdown(openDropdown === 'source' ? null : 'source');
+              }}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 sourceFilter !== 'all'
                   ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
@@ -699,42 +697,57 @@ export const JobDiscoveryPage: React.FC = () => {
             </button>
 
             {openDropdown === 'source' && (
-              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[200px] space-y-0.5">
-                {[
-                  { id: 'all', label: 'All Job Sources' },
-                  { id: 'linkedin', label: 'LinkedIn' },
-                  { id: 'indeed', label: 'Indeed' },
-                  { id: 'greenhouse', label: 'Greenhouse' },
-                  { id: 'lever', label: 'Lever' },
-                  { id: 'adzuna', label: 'Adzuna' },
-                  { id: 'remotive', label: 'Remotive' },
-                  { id: 'manual', label: 'Direct / Manual ATS' },
-                ].map((opt) => (
-                  <button
-                    key={opt.id}
-                    onClick={() => {
-                      setSourceFilter(opt.id);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
-                      sourceFilter === opt.id
-                        ? 'bg-emerald-50 text-emerald-800 font-bold'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                    {sourceFilter === opt.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDropdown(null);
+                  }}
+                />
+                <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 min-w-[210px] space-y-0.5">
+                  {[
+                    { id: 'all', label: 'All Job Sources' },
+                    { id: 'linkedin', label: 'LinkedIn' },
+                    { id: 'indeed', label: 'Indeed' },
+                    { id: 'greenhouse', label: 'Greenhouse' },
+                    { id: 'lever', label: 'Lever' },
+                    { id: 'adzuna', label: 'Adzuna' },
+                    { id: 'remotive', label: 'Remotive' },
+                    { id: 'manual', label: 'Direct / Manual ATS' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSourceFilter(opt.id);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-colors cursor-pointer ${
+                        sourceFilter === opt.id
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {sourceFilter === opt.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
           {/* Pill 2: Location Quick Filter Dropdown */}
-          <div className="relative shrink-0">
+          <div className="relative">
             <button
-              onClick={() => setOpenDropdown(openDropdown === 'location' ? null : 'location')}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdown(openDropdown === 'location' ? null : 'location');
+              }}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 locationQuery.trim() !== ''
                   ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
@@ -746,48 +759,63 @@ export const JobDiscoveryPage: React.FC = () => {
             </button>
 
             {openDropdown === 'location' && (
-              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[210px] space-y-0.5">
-                {[
-                  { id: '', label: '🇮🇳 All India' },
-                  { id: 'Bengaluru', label: 'Bengaluru' },
-                  { id: 'Mumbai', label: 'Mumbai' },
-                  { id: 'Hyderabad', label: 'Hyderabad' },
-                  { id: 'Pune', label: 'Pune' },
-                  { id: 'Delhi', label: 'Delhi/NCR' },
-                  { id: 'Chennai', label: 'Chennai' },
-                  { id: 'Noida', label: 'Noida/Gurgaon' },
-                ].map((loc) => {
-                  const isCurrent =
-                    loc.id === ''
-                      ? locationQuery === ''
-                      : locationQuery.toLowerCase() === loc.id.toLowerCase();
-                  return (
-                    <button
-                      key={loc.id}
-                      onClick={() => {
-                        setLocationQuery(loc.id);
-                        setOpenDropdown(null);
-                      }}
-                      className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
-                        isCurrent
-                          ? 'bg-emerald-50 text-emerald-800 font-bold'
-                          : 'text-slate-700 hover:bg-slate-50'
-                      }`}
-                    >
-                      <span>{loc.label}</span>
-                      {isCurrent && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                    </button>
-                  );
-                })}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDropdown(null);
+                  }}
+                />
+                <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 min-w-[210px] space-y-0.5">
+                  {[
+                    { id: '', label: '🇮🇳 All India' },
+                    { id: 'Bengaluru', label: 'Bengaluru' },
+                    { id: 'Mumbai', label: 'Mumbai' },
+                    { id: 'Hyderabad', label: 'Hyderabad' },
+                    { id: 'Pune', label: 'Pune' },
+                    { id: 'Delhi', label: 'Delhi/NCR' },
+                    { id: 'Chennai', label: 'Chennai' },
+                    { id: 'Noida', label: 'Noida/Gurgaon' },
+                  ].map((loc) => {
+                    const isCurrent =
+                      loc.id === ''
+                        ? locationQuery === ''
+                        : locationQuery.toLowerCase() === loc.id.toLowerCase();
+                    return (
+                      <button
+                        key={loc.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLocationQuery(loc.id);
+                          setOpenDropdown(null);
+                        }}
+                        className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-colors cursor-pointer ${
+                          isCurrent
+                            ? 'bg-emerald-50 text-emerald-800 font-bold'
+                            : 'text-slate-700 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span>{loc.label}</span>
+                        {isCurrent && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
 
           {/* Pill 3: Remote / Workplace Mode Dropdown */}
-          <div className="relative shrink-0">
+          <div className="relative">
             <button
-              onClick={() => setOpenDropdown(openDropdown === 'workType' ? null : 'workType')}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdown(openDropdown === 'workType' ? null : 'workType');
+              }}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 workType !== 'all'
                   ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
@@ -806,38 +834,53 @@ export const JobDiscoveryPage: React.FC = () => {
             </button>
 
             {openDropdown === 'workType' && (
-              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[170px] space-y-0.5">
-                {[
-                  { id: 'all', label: 'All Workplace Modes' },
-                  { id: 'remote', label: '🏠 Remote Only' },
-                  { id: 'hybrid', label: '🏢 Hybrid' },
-                  { id: 'onsite', label: '🏢 On-site' },
-                ].map((mode) => (
-                  <button
-                    key={mode.id}
-                    onClick={() => {
-                      setWorkType(mode.id as any);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
-                      workType === mode.id
-                        ? 'bg-emerald-50 text-emerald-800 font-bold'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{mode.label}</span>
-                    {workType === mode.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDropdown(null);
+                  }}
+                />
+                <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 min-w-[190px] space-y-0.5">
+                  {[
+                    { id: 'all', label: 'All Workplace Modes' },
+                    { id: 'remote', label: '🏠 Remote Only' },
+                    { id: 'hybrid', label: '🏢 Hybrid' },
+                    { id: 'onsite', label: '🏢 On-site' },
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setWorkType(mode.id as any);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-colors cursor-pointer ${
+                        workType === mode.id
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{mode.label}</span>
+                      {workType === mode.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
           {/* Pill 4: Experience Level Dropdown */}
-          <div className="relative shrink-0">
+          <div className="relative">
             <button
-              onClick={() => setOpenDropdown(openDropdown === 'experience' ? null : 'experience')}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdown(openDropdown === 'experience' ? null : 'experience');
+              }}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 experienceLevel !== 'all'
                   ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
@@ -856,38 +899,53 @@ export const JobDiscoveryPage: React.FC = () => {
             </button>
 
             {openDropdown === 'experience' && (
-              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[190px] space-y-0.5">
-                {[
-                  { id: 'all', label: 'All Experience Levels' },
-                  { id: 'entry', label: 'Entry Level (0-2 yrs)' },
-                  { id: 'mid', label: 'Mid-Senior (2-5 yrs)' },
-                  { id: 'senior', label: 'Senior / Lead (5+ yrs)' },
-                ].map((lvl) => (
-                  <button
-                    key={lvl.id}
-                    onClick={() => {
-                      setExperienceLevel(lvl.id as any);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
-                      experienceLevel === lvl.id
-                        ? 'bg-emerald-50 text-emerald-800 font-bold'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{lvl.label}</span>
-                    {experienceLevel === lvl.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDropdown(null);
+                  }}
+                />
+                <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 min-w-[200px] space-y-0.5">
+                  {[
+                    { id: 'all', label: 'All Experience Levels' },
+                    { id: 'entry', label: 'Entry Level (0-2 yrs)' },
+                    { id: 'mid', label: 'Mid-Senior (2-5 yrs)' },
+                    { id: 'senior', label: 'Senior / Lead (5+ yrs)' },
+                  ].map((lvl) => (
+                    <button
+                      key={lvl.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setExperienceLevel(lvl.id as any);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-colors cursor-pointer ${
+                        experienceLevel === lvl.id
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{lvl.label}</span>
+                      {experienceLevel === lvl.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
           {/* Pill 5: Employment Type Dropdown */}
-          <div className="relative shrink-0">
+          <div className="relative">
             <button
-              onClick={() => setOpenDropdown(openDropdown === 'employment' ? null : 'employment')}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setOpenDropdown(openDropdown === 'employment' ? null : 'employment');
+              }}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all cursor-pointer ${
                 employmentType !== 'all'
                   ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                   : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
@@ -906,30 +964,41 @@ export const JobDiscoveryPage: React.FC = () => {
             </button>
 
             {openDropdown === 'employment' && (
-              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[180px] space-y-0.5">
-                {[
-                  { id: 'all', label: 'All Employment Types' },
-                  { id: 'full-time', label: 'Full-time' },
-                  { id: 'contract', label: 'Contract' },
-                  { id: 'part-time', label: 'Part-time' },
-                ].map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => {
-                      setEmploymentType(type.id as any);
-                      setOpenDropdown(null);
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
-                      employmentType === type.id
-                        ? 'bg-emerald-50 text-emerald-800 font-bold'
-                        : 'text-slate-700 hover:bg-slate-50'
-                    }`}
-                  >
-                    <span>{type.label}</span>
-                    {employmentType === type.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
-                  </button>
-                ))}
-              </div>
+              <>
+                <div
+                  className="fixed inset-0 z-40 cursor-default"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenDropdown(null);
+                  }}
+                />
+                <div className="absolute top-full mt-2 left-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-2xl p-2 min-w-[190px] space-y-0.5">
+                  {[
+                    { id: 'all', label: 'All Employment Types' },
+                    { id: 'full-time', label: 'Full-time' },
+                    { id: 'contract', label: 'Contract' },
+                    { id: 'part-time', label: 'Part-time' },
+                  ].map((type) => (
+                    <button
+                      key={type.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEmploymentType(type.id as any);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2 text-xs rounded-xl transition-colors cursor-pointer ${
+                        employmentType === type.id
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{type.label}</span>
+                      {employmentType === type.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  ))}
+                </div>
+              </>
             )}
           </div>
 
@@ -939,8 +1008,9 @@ export const JobDiscoveryPage: React.FC = () => {
             return (
               <button
                 key={chip}
+                type="button"
                 onClick={() => setSearchQuery(isChipActive ? '' : chip)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold shrink-0 border transition-all flex items-center gap-1 ${
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold shrink-0 border transition-all flex items-center gap-1 cursor-pointer ${
                   isChipActive
                     ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                     : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
@@ -954,8 +1024,9 @@ export const JobDiscoveryPage: React.FC = () => {
 
           {/* All Filters Button */}
           <button
+            type="button"
             onClick={() => setIsAllFiltersModalOpen(true)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all shrink-0 ${
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all shrink-0 cursor-pointer ${
               activeFilterCount > 0
                 ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
                 : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
