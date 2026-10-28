@@ -58,7 +58,8 @@ class JobIngestionService:
         for idx, raw_item in enumerate(raw_jobs, start=1):
             # Ensure source field is explicitly populated
             item_data = dict(raw_item)
-            item_data["source"] = source_name
+            if not item_data.get("source"):
+                item_data["source"] = source_name
 
             try:
                 norm_job = NormalizedJob.model_validate(item_data)
@@ -75,18 +76,18 @@ class JobIngestionService:
         if not normalized_jobs:
             return result
 
-        # 3. Application-level duplicate pre-check for target source
-        external_ids = [job.external_id for job in normalized_jobs]
-        stmt = select(Job.external_id).where(
-            Job.source == source_name,
-            Job.external_id.in_(external_ids),
+        # 3. Application-level duplicate pre-check for target sources
+        from sqlalchemy import tuple_
+        sources_and_ids = [(job.source, job.external_id) for job in normalized_jobs]
+        stmt = select(Job.source, Job.external_id).where(
+            tuple_(Job.source, Job.external_id).in_(sources_and_ids)
         )
         existing_res = await self._db.execute(stmt)
-        existing_set = set(existing_res.scalars().all())
+        existing_set = {(r[0], r[1]) for r in existing_res.all()}
 
         # 4. Idempotent database insertion
         for norm_job in normalized_jobs:
-            if norm_job.external_id in existing_set:
+            if (norm_job.source, norm_job.external_id) in existing_set:
                 result.skipped_duplicates += 1
                 continue
 
@@ -123,7 +124,7 @@ class JobIngestionService:
                 try:
                     await self._db.flush()
                     result.inserted += 1
-                    existing_set.add(norm_job.external_id)
+                    existing_set.add((norm_job.source, norm_job.external_id))
                 except IntegrityError:
                     # Duplicate caught at PostgreSQL UNIQUE constraint boundary
                     result.skipped_duplicates += 1

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.adapters import (
     AdzunaJobSourceAdapter,
     GreenhouseJobSourceAdapter,
+    JobSpyJobSourceAdapter,
     LeverJobSourceAdapter,
     ManualJobSourceAdapter,
     RemotiveJobSourceAdapter,
@@ -26,7 +27,6 @@ from app.services.job_ingestion import JobIngestionService
 from app.services.job_queue import AsyncJobQueueWorker
 from app.services.manual_job_service import ManualJobService
 
-
 router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
 
 
@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api/v1/jobs", tags=["Jobs"])
     response_model=IngestionResult,
     status_code=status.HTTP_200_OK,
     summary="Trigger job ingestion pipeline",
-    description="Fetches raw jobs from selected adapter ('manual', 'remotive', 'adzuna', 'greenhouse', 'lever'), normalizes, validates, and idempotently persists into PostgreSQL.",
+    description="Fetches raw jobs from selected adapter ('manual', 'remotive', 'adzuna', 'greenhouse', 'lever', 'jobspy', 'linkedin', 'indeed'), normalizes, validates, and idempotently persists into PostgreSQL.",
 )
 async def ingest_jobs(
     payload: IngestionRequest,
@@ -53,10 +53,17 @@ async def ingest_jobs(
         adapter = GreenhouseJobSourceAdapter()
     elif source_key == "lever":
         adapter = LeverJobSourceAdapter()
+    elif source_key in ("jobspy", "linkedin", "indeed", "glassdoor"):
+        sites = [source_key] if source_key != "jobspy" else ["linkedin", "indeed", "glassdoor"]
+        adapter = JobSpyJobSourceAdapter(
+            sites=sites,
+            search_term=payload.search_term or "Software Engineer",
+            location=payload.location or "Remote",
+        )
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Unsupported job source adapter '{payload.source}'. Supported sources: 'manual', 'remotive', 'adzuna', 'greenhouse', 'lever'.",
+            detail=f"Unsupported job source adapter '{payload.source}'. Supported sources: 'manual', 'remotive', 'adzuna', 'greenhouse', 'lever', 'jobspy', 'linkedin', 'indeed'.",
         )
 
     service = JobIngestionService(db)
@@ -203,6 +210,9 @@ async def trigger_worker_cycle(
         adapter = GreenhouseJobSourceAdapter()
     elif source_lower == "lever":
         adapter = LeverJobSourceAdapter()
+    elif source_lower in ("jobspy", "linkedin", "indeed", "glassdoor"):
+        sites = [source_lower] if source_lower != "jobspy" else ["linkedin", "indeed", "glassdoor"]
+        adapter = JobSpyJobSourceAdapter(sites=sites)
     else:
         adapter = ManualJobSourceAdapter()
 

@@ -4,6 +4,7 @@ from app.adapters.remotive import RemotiveJobSourceAdapter
 from app.adapters.adzuna import AdzunaJobSourceAdapter
 from app.adapters.greenhouse_adapter import GreenhouseJobSourceAdapter
 from app.adapters.lever_adapter import LeverJobSourceAdapter
+from app.adapters.jobspy_adapter import JobSpyJobSourceAdapter
 
 __all__ = [
     "BaseJobSourceAdapter",
@@ -12,5 +13,7 @@ __all__ = [
     "AdzunaJobSourceAdapter",
     "GreenhouseJobSourceAdapter",
     "LeverJobSourceAdapter",
+    "JobSpyJobSourceAdapter",
 ]
+
 

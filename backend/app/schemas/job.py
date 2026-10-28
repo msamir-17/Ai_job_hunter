@@ -79,9 +79,12 @@ class NormalizedJob(BaseModel):
 class IngestionRequest(BaseModel):
     """Request schema for triggering job ingestion."""
 
-    source: str = Field(default="manual", description="Source adapter name ('manual' or 'remotive')")
+    source: str = Field(default="manual", description="Source adapter name ('manual', 'remotive', 'greenhouse', 'lever', 'jobspy', 'linkedin', 'indeed')")
     limit: int | None = Field(default=20, ge=1, le=500, description="Maximum number of jobs to fetch and ingest")
     use_cache: bool = Field(default=False, description="Use local development cache file if available")
+    search_term: str | None = Field(default=None, description="Optional job title / keywords for search aggregators (e.g. LinkedIn, Indeed)")
+    location: str | None = Field(default=None, description="Optional target location (e.g. 'Remote', 'USA', 'India')")
+
 
 
 class IngestionResult(BaseModel):

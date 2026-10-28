@@ -278,7 +278,19 @@ export const JobDiscoveryPage: React.FC = () => {
 
     try {
       try {
-        const resGreenhouse = await ingestJobs({ source: 'greenhouse', limit: 20 });
+        const queryTerm = searchQuery.trim() || (profile?.target_titles?.[0]) || 'Software Engineer';
+        const locTerm = locationQuery.trim() || 'Remote';
+        const resJobSpy = await ingestJobs({
+          source: 'jobspy',
+          limit: 15,
+          search_term: queryTerm,
+          location: locTerm,
+        });
+        totalIngested += resJobSpy.new_ingested;
+      } catch (err) {}
+
+      try {
+        const resGreenhouse = await ingestJobs({ source: 'greenhouse', limit: 15 });
         totalIngested += resGreenhouse.new_ingested;
       } catch (err) {}
 
@@ -644,6 +656,8 @@ export const JobDiscoveryPage: React.FC = () => {
             <span className="text-[11px] font-medium text-slate-500">Source:</span>
             {[
               { id: 'all', label: 'All' },
+              { id: 'linkedin', label: 'LinkedIn' },
+              { id: 'indeed', label: 'Indeed' },
               { id: 'greenhouse', label: 'Greenhouse' },
               { id: 'lever', label: 'Lever' },
               { id: 'adzuna', label: 'Adzuna' },
@@ -757,7 +771,17 @@ export const JobDiscoveryPage: React.FC = () => {
                     {match ? (
                       <MatchScoreBadge score={match.llm_score} size="md" />
                     ) : (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-slate-100 text-slate-600 border border-slate-200">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold border uppercase tracking-wider ${
+                        job.source === 'linkedin'
+                          ? 'bg-blue-50 text-blue-700 border-blue-200'
+                          : job.source === 'indeed'
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                          : job.source === 'greenhouse'
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                          : job.source === 'lever'
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}>
                         {job.source}
                       </span>
                     )}

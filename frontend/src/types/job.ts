@@ -21,10 +21,13 @@ export interface Job {
 }
 
 export interface IngestionRequest {
-  source: 'manual' | 'remotive' | 'adzuna' | 'greenhouse' | 'lever' | 'jooble' | string;
+  source: 'manual' | 'remotive' | 'adzuna' | 'greenhouse' | 'lever' | 'jobspy' | 'linkedin' | 'indeed' | 'glassdoor' | string;
   limit?: number;
   use_cache?: boolean;
+  search_term?: string | null;
+  location?: string | null;
 }
+
 
 export interface IngestionResult {
   source: string;
