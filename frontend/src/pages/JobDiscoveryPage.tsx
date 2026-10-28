@@ -69,6 +69,41 @@ function getJobExperienceCategory(job: Job): 'entry' | 'mid' | 'senior' {
   return 'mid';
 }
 
+const INDIAN_LOCATIONS_REGEX = /\b(india|bengaluru|bangalore|mumbai|delhi|hyderabad|pune|chennai|noida|gurugram|gurgaon|kolkata|ahmedabad|jaipur|kochi|chandigarh|indore|trivandrum|kerala|karnataka|maharashtra|telangana|tamil nadu|mh|ka|ts|gj|wb|mp)\b/i;
+
+function matchesLocation(jobLoc: string | undefined | null, query: string): boolean {
+  if (!query || !query.trim()) return true;
+  const q = query.trim().toLowerCase();
+  const loc = (jobLoc || '').toLowerCase();
+  if (!loc) return q === 'india';
+
+  if (q === 'india') {
+    return loc.includes('india') || INDIAN_LOCATIONS_REGEX.test(loc);
+  }
+  if (q === 'delhi') {
+    return loc.includes('delhi') || loc.includes('noida') || loc.includes('gurgaon') || loc.includes('gurugram') || loc.includes('ncr');
+  }
+  if (q === 'bengaluru') {
+    return loc.includes('bengaluru') || loc.includes('bangalore') || loc.includes('ka');
+  }
+  if (q === 'mumbai') {
+    return loc.includes('mumbai') || loc.includes('navi mumbai') || loc.includes('mh');
+  }
+  if (q === 'pune') {
+    return loc.includes('pune') || loc.includes('pimpri') || loc.includes('mh');
+  }
+  if (q === 'hyderabad') {
+    return loc.includes('hyderabad') || loc.includes('ts') || loc.includes('telangana');
+  }
+  if (q === 'chennai') {
+    return loc.includes('chennai') || loc.includes('tamil nadu');
+  }
+  if (q === 'noida') {
+    return loc.includes('noida') || loc.includes('gurgaon') || loc.includes('gurugram') || loc.includes('delhi');
+  }
+  return loc.includes(q);
+}
+
 export const JobDiscoveryPage: React.FC = () => {
   // Candidate Profile
   const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
@@ -277,24 +312,38 @@ export const JobDiscoveryPage: React.FC = () => {
     let totalIngested = 0;
 
     try {
-      try {
-        const queryTerm = searchQuery.trim() || (profile?.target_titles?.[0]) || 'Software Engineer';
-        let locTerm = locationQuery.trim();
-        if (!locTerm || locTerm.toLowerCase() === 'remote') {
-          locTerm = 'India';
-        }
-        const isRemoteParam = workType === 'remote' ? true : workType === 'onsite' ? false : undefined;
-        const jobTypeParam = employmentType !== 'all' ? employmentType : undefined;
+      const queryTerm = searchQuery.trim() || (profile?.target_titles?.[0]) || 'Software Engineer';
+      let locTerm = locationQuery.trim();
+      if (!locTerm || locTerm.toLowerCase() === 'remote') {
+        locTerm = 'India';
+      }
+      const isRemoteParam = workType === 'remote' ? true : workType === 'onsite' ? false : undefined;
+      const jobTypeParam = employmentType !== 'all' ? employmentType : undefined;
 
-        const resJobSpy = await ingestJobs({
-          source: 'jobspy',
+      // Ingest live LinkedIn jobs
+      try {
+        const resLinkedIn = await ingestJobs({
+          source: 'linkedin',
           limit: 15,
           search_term: queryTerm,
           location: locTerm,
           is_remote: isRemoteParam,
           job_type: jobTypeParam,
         });
-        totalIngested += resJobSpy.new_ingested;
+        totalIngested += resLinkedIn.new_ingested;
+      } catch (err) {}
+
+      // Ingest live Indeed jobs
+      try {
+        const resIndeed = await ingestJobs({
+          source: 'indeed',
+          limit: 15,
+          search_term: queryTerm,
+          location: locTerm,
+          is_remote: isRemoteParam,
+          job_type: jobTypeParam,
+        });
+        totalIngested += resIndeed.new_ingested;
       } catch (err) {}
 
       try {
@@ -395,8 +444,7 @@ export const JobDiscoveryPage: React.FC = () => {
     }
 
     if (locationQuery.trim()) {
-      const loc = (job.location || '').toLowerCase();
-      if (!loc.includes(locationQuery.toLowerCase().trim())) return false;
+      if (!matchesLocation(job.location, locationQuery)) return false;
     }
 
     if (employmentType !== 'all') {

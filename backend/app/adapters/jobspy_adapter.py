@@ -251,6 +251,22 @@ class JobSpyJobSourceAdapter(BaseJobSourceAdapter):
             })
 
         logger.info(f"JobSpy successfully parsed {len(normalized_jobs)} live postings.")
+
+        # If multiple sites were scraped, round-robin interleave across sites to ensure equal representation
+        if len(sites) > 1 and normalized_jobs:
+            from collections import defaultdict
+            by_site: dict[str, list[dict[str, Any]]] = defaultdict(list)
+            for j in normalized_jobs:
+                by_site[j["source"]].append(j)
+
+            interleaved: list[dict[str, Any]] = []
+            max_len = max((len(lst) for lst in by_site.values()), default=0)
+            for i in range(max_len):
+                for s_jobs in by_site.values():
+                    if i < len(s_jobs):
+                        interleaved.append(s_jobs[i])
+            normalized_jobs = interleaved
+
         if limit is not None and limit > 0:
             return normalized_jobs[:limit]
         return normalized_jobs
