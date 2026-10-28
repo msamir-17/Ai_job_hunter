@@ -16,6 +16,8 @@ import {
   LayoutGrid,
   Columns,
   Check,
+  ChevronDown,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { Job } from '../types/job';
 import { CandidateProfileResponse } from '../types/candidateProfile';
@@ -140,6 +142,10 @@ export const JobDiscoveryPage: React.FC = () => {
   // View mode & selection state for LinkedIn-style Master-Detail Split View
   const [viewMode, setViewMode] = useState<'split' | 'grid'>('split');
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
+  // LinkedIn-style filter dropdowns and All-Filters modal state
+  const [openDropdown, setOpenDropdown] = useState<'source' | 'location' | 'workType' | 'experience' | 'employment' | null>(null);
+  const [isAllFiltersModalOpen, setIsAllFiltersModalOpen] = useState<boolean>(false);
 
   // Modals state
   const [selectedJobForModal, setSelectedJobForModal] = useState<Job | null>(null);
@@ -487,6 +493,15 @@ export const JobDiscoveryPage: React.FC = () => {
     sourceFilter !== 'all' ||
     hideDiscarded;
 
+  const activeFilterCount =
+    (searchQuery.trim() !== '' ? 1 : 0) +
+    (locationQuery.trim() !== '' ? 1 : 0) +
+    (workType !== 'all' ? 1 : 0) +
+    (employmentType !== 'all' ? 1 : 0) +
+    (experienceLevel !== 'all' ? 1 : 0) +
+    (sourceFilter !== 'all' ? 1 : 0) +
+    (hideDiscarded ? 1 : 0);
+
   const clearAllFilters = () => {
     setSearchQuery('');
     setLocationQuery('');
@@ -495,6 +510,7 @@ export const JobDiscoveryPage: React.FC = () => {
     setExperienceLevel('all');
     setSourceFilter('all');
     setHideDiscarded(false);
+    setOpenDropdown(null);
   };
 
   const TRENDING_KEYWORDS = ['AI/ML', 'Gen AI', 'LLM', 'Backend', 'Python', 'FastAPI', 'React', 'DevOps'];
@@ -594,11 +610,21 @@ export const JobDiscoveryPage: React.FC = () => {
         </div>
       )}
 
-      {/* LinkedIn Screenshot 2 Style: Search & Filters Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3">
-        {/* Search Inputs & View Mode Switch Row */}
-        <div className="flex flex-col md:flex-row items-center gap-2.5">
-          {/* Keyword Search */}
+      {/* ========================================================================= */}
+      {/* LINKEDIN SCREENSHOT 2: UNIFIED SEARCH & PILL FILTERS BAR                 */}
+      {/* ========================================================================= */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3 relative">
+        {/* Click outside backdrop for dropdown popovers */}
+        {openDropdown && (
+          <div
+            className="fixed inset-0 z-20"
+            onClick={() => setOpenDropdown(null)}
+          />
+        )}
+
+        {/* Top: LinkedIn Search Input with Location */}
+        <div className="flex flex-col sm:flex-row items-center gap-2">
+          {/* Keyword Search Input */}
           <div className="flex-1 relative w-full">
             <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
             <input
@@ -606,7 +632,7 @@ export const JobDiscoveryPage: React.FC = () => {
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by title, skill, or company (e.g. Python, AI/ML, Full Stack)..."
-              className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
+              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-full pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
             />
             {searchQuery && (
               <button
@@ -619,14 +645,14 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
 
           {/* Location Input */}
-          <div className="w-full md:w-64 relative">
+          <div className="w-full sm:w-72 relative">
             <MapPin className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
             <input
               type="text"
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
               placeholder="City, State, or India..."
-              className="w-full bg-slate-50/70 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-xl pl-10 pr-4 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
+              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-full pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
             />
             {locationQuery && (
               <button
@@ -637,164 +663,378 @@ export const JobDiscoveryPage: React.FC = () => {
               </button>
             )}
           </div>
-
-          {/* View Mode Toggle Button */}
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl shrink-0 self-end md:self-auto">
-            <button
-              onClick={() => setViewMode('split')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'split'
-                  ? 'bg-white text-[#0a66c2] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Split View (LinkedIn Style Master-Detail)"
-            >
-              <Columns className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Split View</span>
-            </button>
-            <button
-              onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                viewMode === 'grid'
-                  ? 'bg-white text-[#0a66c2] shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-              title="Grid View (2-Column Cards)"
-            >
-              <LayoutGrid className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Grid View</span>
-            </button>
-          </div>
         </div>
 
-        {/* Quick Tech Keyword Chips (LinkedIn Screenshot 2 style) */}
-        <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-          <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">Trending:</span>
+        {/* Filter Pills Row (LinkedIn Screenshot 2 Style) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none relative z-25">
+          {/* Pill 1: Source Filter Dropdown */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'source' ? null : 'source')}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                sourceFilter !== 'all'
+                  ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
+              }`}
+            >
+              <Briefcase className="w-3.5 h-3.5" />
+              <span>
+                {sourceFilter === 'all'
+                  ? 'Jobs'
+                  : sourceFilter === 'linkedin'
+                  ? 'LinkedIn'
+                  : sourceFilter === 'indeed'
+                  ? 'Indeed'
+                  : sourceFilter === 'greenhouse'
+                  ? 'Greenhouse'
+                  : sourceFilter === 'lever'
+                  ? 'Lever'
+                  : sourceFilter === 'adzuna'
+                  ? 'Adzuna'
+                  : sourceFilter === 'remotive'
+                  ? 'Remotive'
+                  : 'Direct/ATS'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+            </button>
+
+            {openDropdown === 'source' && (
+              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[200px] space-y-0.5">
+                {[
+                  { id: 'all', label: 'All Job Sources' },
+                  { id: 'linkedin', label: 'LinkedIn' },
+                  { id: 'indeed', label: 'Indeed' },
+                  { id: 'greenhouse', label: 'Greenhouse' },
+                  { id: 'lever', label: 'Lever' },
+                  { id: 'adzuna', label: 'Adzuna' },
+                  { id: 'remotive', label: 'Remotive' },
+                  { id: 'manual', label: 'Direct / Manual ATS' },
+                ].map((opt) => (
+                  <button
+                    key={opt.id}
+                    onClick={() => {
+                      setSourceFilter(opt.id);
+                      setOpenDropdown(null);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
+                      sourceFilter === opt.id
+                        ? 'bg-emerald-50 text-emerald-800 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{opt.label}</span>
+                    {sourceFilter === opt.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pill 2: Location Quick Filter Dropdown */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'location' ? null : 'location')}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                locationQuery.trim() !== ''
+                  ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
+              }`}
+            >
+              <MapPin className="w-3.5 h-3.5" />
+              <span>{locationQuery.trim() ? locationQuery : 'Location'}</span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+            </button>
+
+            {openDropdown === 'location' && (
+              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[210px] space-y-0.5">
+                {[
+                  { id: '', label: '🇮🇳 All India' },
+                  { id: 'Bengaluru', label: 'Bengaluru' },
+                  { id: 'Mumbai', label: 'Mumbai' },
+                  { id: 'Hyderabad', label: 'Hyderabad' },
+                  { id: 'Pune', label: 'Pune' },
+                  { id: 'Delhi', label: 'Delhi/NCR' },
+                  { id: 'Chennai', label: 'Chennai' },
+                  { id: 'Noida', label: 'Noida/Gurgaon' },
+                ].map((loc) => {
+                  const isCurrent =
+                    loc.id === ''
+                      ? locationQuery === ''
+                      : locationQuery.toLowerCase() === loc.id.toLowerCase();
+                  return (
+                    <button
+                      key={loc.id}
+                      onClick={() => {
+                        setLocationQuery(loc.id);
+                        setOpenDropdown(null);
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
+                        isCurrent
+                          ? 'bg-emerald-50 text-emerald-800 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{loc.label}</span>
+                      {isCurrent && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Pill 3: Remote / Workplace Mode Dropdown */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'workType' ? null : 'workType')}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                workType !== 'all'
+                  ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
+              }`}
+            >
+              <span>
+                {workType === 'all'
+                  ? 'Remote / Mode'
+                  : workType === 'remote'
+                  ? '🏠 Remote'
+                  : workType === 'hybrid'
+                  ? '🏢 Hybrid'
+                  : '🏢 On-site'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+            </button>
+
+            {openDropdown === 'workType' && (
+              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[170px] space-y-0.5">
+                {[
+                  { id: 'all', label: 'All Workplace Modes' },
+                  { id: 'remote', label: '🏠 Remote Only' },
+                  { id: 'hybrid', label: '🏢 Hybrid' },
+                  { id: 'onsite', label: '🏢 On-site' },
+                ].map((mode) => (
+                  <button
+                    key={mode.id}
+                    onClick={() => {
+                      setWorkType(mode.id as any);
+                      setOpenDropdown(null);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
+                      workType === mode.id
+                        ? 'bg-emerald-50 text-emerald-800 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{mode.label}</span>
+                    {workType === mode.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pill 4: Experience Level Dropdown */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'experience' ? null : 'experience')}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                experienceLevel !== 'all'
+                  ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
+              }`}
+            >
+              <span>
+                {experienceLevel === 'all'
+                  ? 'Experience level'
+                  : experienceLevel === 'entry'
+                  ? 'Entry Level'
+                  : experienceLevel === 'mid'
+                  ? 'Mid-Senior'
+                  : 'Senior / Lead'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+            </button>
+
+            {openDropdown === 'experience' && (
+              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[190px] space-y-0.5">
+                {[
+                  { id: 'all', label: 'All Experience Levels' },
+                  { id: 'entry', label: 'Entry Level (0-2 yrs)' },
+                  { id: 'mid', label: 'Mid-Senior (2-5 yrs)' },
+                  { id: 'senior', label: 'Senior / Lead (5+ yrs)' },
+                ].map((lvl) => (
+                  <button
+                    key={lvl.id}
+                    onClick={() => {
+                      setExperienceLevel(lvl.id as any);
+                      setOpenDropdown(null);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
+                      experienceLevel === lvl.id
+                        ? 'bg-emerald-50 text-emerald-800 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{lvl.label}</span>
+                    {experienceLevel === lvl.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Pill 5: Employment Type Dropdown */}
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setOpenDropdown(openDropdown === 'employment' ? null : 'employment')}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all ${
+                employmentType !== 'all'
+                  ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                  : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
+              }`}
+            >
+              <span>
+                {employmentType === 'all'
+                  ? 'Employment type'
+                  : employmentType === 'full-time'
+                  ? 'Full-time'
+                  : employmentType === 'contract'
+                  ? 'Contract'
+                  : 'Part-time'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 opacity-80" />
+            </button>
+
+            {openDropdown === 'employment' && (
+              <div className="absolute top-full mt-1.5 left-0 z-30 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 min-w-[180px] space-y-0.5">
+                {[
+                  { id: 'all', label: 'All Employment Types' },
+                  { id: 'full-time', label: 'Full-time' },
+                  { id: 'contract', label: 'Contract' },
+                  { id: 'part-time', label: 'Part-time' },
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    onClick={() => {
+                      setEmploymentType(type.id as any);
+                      setOpenDropdown(null);
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-1.5 text-xs rounded-xl transition-colors ${
+                      employmentType === type.id
+                        ? 'bg-emerald-50 text-emerald-800 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span>{type.label}</span>
+                    {employmentType === type.id && <Check className="w-3.5 h-3.5 text-emerald-600" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Inline Keyword Chips (LinkedIn Screenshot 2 style: AI/ML, Gen AI, LLM, Backend...) */}
           {TRENDING_KEYWORDS.map((chip) => {
             const isChipActive = searchQuery.toLowerCase() === chip.toLowerCase();
             return (
               <button
                 key={chip}
                 onClick={() => setSearchQuery(isChipActive ? '' : chip)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-all ${
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold shrink-0 border transition-all flex items-center gap-1 ${
                   isChipActive
-                    ? 'bg-[#0a66c2] text-white shadow-sm ring-1 ring-[#0a66c2]'
-                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                    ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                    : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
                 }`}
               >
-                {chip}
+                <span>{chip}</span>
+                {isChipActive && <X className="w-3 h-3 ml-0.5" />}
               </button>
             );
           })}
+
+          {/* All Filters Button */}
+          <button
+            onClick={() => setIsAllFiltersModalOpen(true)}
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all shrink-0 ${
+              activeFilterCount > 0
+                ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
+            }`}
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>All filters</span>
+            {activeFilterCount > 0 && (
+              <span className="bg-white/20 text-white rounded-full px-1.5 py-0.2 text-[10px] font-bold">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
 
-        {/* Filter Badges & Toggles Row */}
-        <div className="space-y-2 pt-2 border-t border-slate-100 text-xs">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            {/* Sources Filter */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Source:</span>
-              {[
-                { id: 'all', label: 'All' },
-                { id: 'linkedin', label: 'LinkedIn', color: 'text-[#0a66c2]' },
-                { id: 'indeed', label: 'Indeed', color: 'text-indigo-600' },
-                { id: 'greenhouse', label: 'Greenhouse' },
-                { id: 'lever', label: 'Lever' },
-                { id: 'adzuna', label: 'Adzuna' },
-                { id: 'remotive', label: 'Remotive' },
-                { id: 'manual', label: 'Direct/ATS' },
-              ].map((src) => (
-                <button
-                  key={src.id}
-                  onClick={() => setSourceFilter(src.id)}
-                  className={`px-2.5 py-0.5 rounded-full text-xs font-medium border transition-colors ${
-                    sourceFilter === src.id
-                      ? 'bg-blue-50 text-[#0a66c2] border-[#0a66c2]/40 font-semibold shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {src.label}
-                </button>
-              ))}
-            </div>
+        {/* Reset Action Link (LinkedIn Screenshot 2) */}
+        {hasActiveFilters && (
+          <div className="pt-0.5 flex items-center gap-2">
+            <button
+              onClick={clearAllFilters}
+              className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline"
+            >
+              Reset
+            </button>
+          </div>
+        )}
 
-            {/* Clear & Hide Discarded Controls */}
-            <div className="flex items-center gap-3">
-              <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={hideDiscarded}
-                  onChange={(e) => setHideDiscarded(e.target.checked)}
-                  className="rounded border-slate-300 text-[#0a66c2] focus:ring-[#0a66c2]"
-                />
-                <span>Hide Discarded ({Object.keys(discardsByJobId).length})</span>
-              </label>
-
-              {hasActiveFilters && (
-                <button
-                  onClick={clearAllFilters}
-                  className="flex items-center gap-1 text-[11px] font-medium text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 px-2 py-0.5 rounded-full border border-red-200 transition-colors"
-                >
-                  <X className="w-3 h-3" />
-                  Clear All
-                </button>
-              )}
-            </div>
+        {/* Results Counter & View Controls Sub-bar */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
+            <span>
+              <strong className="text-slate-900 font-bold">{filteredJobs.length}</strong> results
+            </span>
+            <span>•</span>
+            <button
+              onClick={() => setOpenDropdown('location')}
+              className="text-[#0a66c2] hover:underline font-semibold flex items-center gap-1"
+            >
+              <MapPin className="w-3 h-3 text-[#0a66c2]" />
+              <span>{locationQuery || 'All India'}</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
           </div>
 
-          {/* Region & Work Mode Pills Row */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100/60">
-            {/* Geographic Region Pills */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Region:</span>
-              {[
-                { id: 'India', label: '🇮🇳 All India' },
-                { id: 'Bengaluru', label: 'Bengaluru' },
-                { id: 'Mumbai', label: 'Mumbai' },
-                { id: 'Hyderabad', label: 'Hyderabad' },
-                { id: 'Pune', label: 'Pune' },
-                { id: 'Delhi', label: 'Delhi/NCR' },
-                { id: 'Chennai', label: 'Chennai' },
-                { id: 'Noida', label: 'Noida/Gurgaon' },
-              ].map((loc) => {
-                const isActive = locationQuery.toLowerCase() === loc.id.toLowerCase();
-                return (
-                  <button
-                    key={loc.id}
-                    onClick={() => setLocationQuery(isActive ? '' : loc.id)}
-                    className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                      isActive
-                        ? 'bg-emerald-50 text-emerald-800 border-emerald-300 font-semibold shadow-sm'
-                        : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {loc.label}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={hideDiscarded}
+                onChange={(e) => setHideDiscarded(e.target.checked)}
+                className="rounded border-slate-300 text-[#0a66c2] focus:ring-[#0a66c2]"
+              />
+              <span>Hide Discarded ({Object.keys(discardsByJobId).length})</span>
+            </label>
 
-            {/* Work Mode Arrangement Pills */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className="text-[11px] font-semibold text-slate-500">Mode:</span>
-              {[
-                { id: 'all', label: 'All Modes' },
-                { id: 'remote', label: '🏠 Remote' },
-                { id: 'hybrid', label: '🏢 Hybrid' },
-                { id: 'onsite', label: '🏢 On-site' },
-              ].map((mode) => (
-                <button
-                  key={mode.id}
-                  onClick={() => setWorkType(mode.id as any)}
-                  className={`px-2.5 py-0.5 rounded-full text-[11px] font-medium border transition-colors ${
-                    workType === mode.id
-                      ? 'bg-purple-50 text-purple-700 border-purple-300 font-semibold shadow-sm'
-                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  {mode.label}
-                </button>
-              ))}
+            {/* Split View / Grid View Switcher */}
+            <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
+              <button
+                onClick={() => setViewMode('split')}
+                className={`p-1.5 rounded-md text-xs transition-all ${
+                  viewMode === 'split'
+                    ? 'bg-white text-[#0a66c2] shadow-sm font-semibold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Split View (LinkedIn Style Master-Detail)"
+              >
+                <Columns className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-1.5 rounded-md text-xs transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-white text-[#0a66c2] shadow-sm font-semibold'
+                    : 'text-slate-500 hover:text-slate-800'
+                }`}
+                title="Grid View (2-Column Cards)"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
         </div>
@@ -1361,6 +1601,200 @@ export const JobDiscoveryPage: React.FC = () => {
           onConfirm={handleConfirmDiscard}
           isSubmitting={isSubmittingDiscard}
         />
+      )}
+
+      {/* LinkedIn Style: All Filters Modal Dialog */}
+      {isAllFiltersModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-5 h-5 text-slate-700" />
+                <h3 className="text-base font-bold text-slate-900">All Filters</h3>
+              </div>
+              <button
+                onClick={() => setIsAllFiltersModalOpen(false)}
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body: Filter Categories */}
+            <div className="p-5 overflow-y-auto space-y-6 flex-1 text-xs">
+              {/* Category 1: Job Source */}
+              <div className="space-y-2.5">
+                <h4 className="font-bold text-slate-900 text-sm">Job Source</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'all', label: 'All Sources' },
+                    { id: 'linkedin', label: 'LinkedIn' },
+                    { id: 'indeed', label: 'Indeed' },
+                    { id: 'greenhouse', label: 'Greenhouse' },
+                    { id: 'lever', label: 'Lever' },
+                    { id: 'adzuna', label: 'Adzuna' },
+                    { id: 'remotive', label: 'Remotive' },
+                    { id: 'manual', label: 'Direct / ATS' },
+                  ].map((src) => (
+                    <button
+                      key={src.id}
+                      onClick={() => setSourceFilter(src.id)}
+                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
+                        sourceFilter === src.id
+                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {src.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category 2: Workplace Mode */}
+              <div className="space-y-2.5 border-t border-slate-100 pt-4">
+                <h4 className="font-bold text-slate-900 text-sm">Workplace Mode</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'all', label: 'All Modes' },
+                    { id: 'remote', label: '🏠 Remote' },
+                    { id: 'hybrid', label: '🏢 Hybrid' },
+                    { id: 'onsite', label: '🏢 On-site' },
+                  ].map((mode) => (
+                    <button
+                      key={mode.id}
+                      onClick={() => setWorkType(mode.id as any)}
+                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
+                        workType === mode.id
+                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {mode.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category 3: Experience Level */}
+              <div className="space-y-2.5 border-t border-slate-100 pt-4">
+                <h4 className="font-bold text-slate-900 text-sm">Experience Level</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'all', label: 'All Experience' },
+                    { id: 'entry', label: 'Entry Level (0-2 yrs)' },
+                    { id: 'mid', label: 'Mid-Senior (2-5 yrs)' },
+                    { id: 'senior', label: 'Senior / Lead (5+ yrs)' },
+                  ].map((lvl) => (
+                    <button
+                      key={lvl.id}
+                      onClick={() => setExperienceLevel(lvl.id as any)}
+                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
+                        experienceLevel === lvl.id
+                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {lvl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category 4: Employment Type */}
+              <div className="space-y-2.5 border-t border-slate-100 pt-4">
+                <h4 className="font-bold text-slate-900 text-sm">Employment Type</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: 'all', label: 'All Types' },
+                    { id: 'full-time', label: 'Full-time' },
+                    { id: 'contract', label: 'Contract' },
+                    { id: 'part-time', label: 'Part-time' },
+                  ].map((emp) => (
+                    <button
+                      key={emp.id}
+                      onClick={() => setEmploymentType(emp.id as any)}
+                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
+                        employmentType === emp.id
+                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      {emp.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Category 5: Popular Regions */}
+              <div className="space-y-2.5 border-t border-slate-100 pt-4">
+                <h4 className="font-bold text-slate-900 text-sm">Location / Region</h4>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { id: '', label: '🇮🇳 All India' },
+                    { id: 'Bengaluru', label: 'Bengaluru' },
+                    { id: 'Mumbai', label: 'Mumbai' },
+                    { id: 'Hyderabad', label: 'Hyderabad' },
+                    { id: 'Pune', label: 'Pune' },
+                    { id: 'Delhi', label: 'Delhi/NCR' },
+                    { id: 'Chennai', label: 'Chennai' },
+                    { id: 'Noida', label: 'Noida/Gurgaon' },
+                  ].map((loc) => {
+                    const isSelected =
+                      loc.id === ''
+                        ? locationQuery === ''
+                        : locationQuery.toLowerCase() === loc.id.toLowerCase();
+                    return (
+                      <button
+                        key={loc.id}
+                        onClick={() => setLocationQuery(loc.id)}
+                        className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
+                          isSelected
+                            ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        {loc.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Category 6: Discarded Jobs Toggle */}
+              <div className="border-t border-slate-100 pt-4">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={hideDiscarded}
+                    onChange={(e) => setHideDiscarded(e.target.checked)}
+                    className="rounded border-slate-300 text-[#057642] focus:ring-[#057642]"
+                  />
+                  <span className="font-semibold text-slate-800">
+                    Hide discarded jobs ({Object.keys(discardsByJobId).length})
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 sm:p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50">
+              <button
+                onClick={clearAllFilters}
+                className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline"
+              >
+                Reset All Filters
+              </button>
+              <button
+                onClick={() => setIsAllFiltersModalOpen(false)}
+                className="px-5 py-2 rounded-full text-xs font-bold bg-[#057642] hover:bg-[#046237] text-white shadow-sm transition-all"
+              >
+                Show {filteredJobs.length} Results
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
