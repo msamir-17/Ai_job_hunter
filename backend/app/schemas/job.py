@@ -83,7 +83,9 @@ class IngestionRequest(BaseModel):
     limit: int | None = Field(default=20, ge=1, le=500, description="Maximum number of jobs to fetch and ingest")
     use_cache: bool = Field(default=False, description="Use local development cache file if available")
     search_term: str | None = Field(default=None, description="Optional job title / keywords for search aggregators (e.g. LinkedIn, Indeed)")
-    location: str | None = Field(default=None, description="Optional target location (e.g. 'Remote', 'USA', 'India')")
+    location: str | None = Field(default="India", description="Target geographic location (e.g. 'India', 'Bengaluru', 'Mumbai')")
+    is_remote: bool | None = Field(default=None, description="Filter for remote work arrangement")
+    job_type: str | None = Field(default=None, description="Employment type (e.g. 'fulltime', 'contract', 'parttime', 'internship')")
 
 
 

@@ -81,3 +81,72 @@ async def test_jobspy_adapter_handles_empty_or_failure():
         adapter = JobSpyJobSourceAdapter()
         jobs = await adapter.fetch_jobs(limit=5)
         assert jobs == []
+
+
+def test_detect_country_indeed():
+    from app.adapters.jobspy_adapter import detect_country_indeed
+    assert detect_country_indeed("Bengaluru, India") == "india"
+    assert detect_country_indeed("Mumbai, MH") == "india"
+    assert detect_country_indeed("New York, NY, USA") == "USA"
+    assert detect_country_indeed("London, UK") == "UK"
+    assert detect_country_indeed(None) == "india"
+    assert detect_country_indeed("Remote") == "india"
+
+
+def test_sanitize_location_and_remote():
+    from app.adapters.jobspy_adapter import sanitize_location_and_remote
+    # Pure 'Remote' as location maps geographic location to India and is_remote to True
+    loc, is_rem = sanitize_location_and_remote("Remote", None)
+    assert loc == "India"
+    assert is_rem is True
+
+    # 'Remote, India'
+    loc, is_rem = sanitize_location_and_remote("Remote, India", None)
+    assert loc == "India"
+    assert is_rem is True
+
+    # City with Remote note
+    loc, is_rem = sanitize_location_and_remote("Bengaluru (Remote)", None)
+    assert loc == "Bengaluru"
+    assert is_rem is True
+
+    # Onsite city
+    loc, is_rem = sanitize_location_and_remote("Mumbai", False)
+    assert loc == "Mumbai"
+    assert is_rem is False
+
+
+def test_normalize_job_type():
+    from app.adapters.jobspy_adapter import normalize_job_type
+    assert normalize_job_type("full-time") == "fulltime"
+    assert normalize_job_type("Full Time") == "fulltime"
+    assert normalize_job_type("contract") == "contract"
+    assert normalize_job_type("part-time") == "parttime"
+    assert normalize_job_type("internship") == "internship"
+    assert normalize_job_type("unknown-type") is None
+
+
+@pytest.mark.anyio
+async def test_jobspy_adapter_forwards_clean_location_and_remote():
+    mock_df = pd.DataFrame([
+        {
+            "id": "1",
+            "site": "indeed",
+            "title": "Engineer",
+            "company": "Tech Co",
+            "location": "Bengaluru, India",
+            "is_remote": True,
+        }
+    ])
+
+    with patch("jobspy.scrape_jobs", return_value=mock_df) as mock_scrape:
+        adapter = JobSpyJobSourceAdapter(search_term="Python", location="Remote", is_remote=None)
+        await adapter.fetch_jobs(limit=5)
+
+        # Confirm scrape_jobs was called with clean location 'India' and is_remote=True, NOT location='Remote'
+        call_kwargs = mock_scrape.call_args.kwargs
+        assert call_kwargs["location"] == "India"
+        assert call_kwargs["is_remote"] is True
+        assert call_kwargs["country_indeed"] == "india"
+
+

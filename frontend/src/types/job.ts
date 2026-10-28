@@ -26,6 +26,8 @@ export interface IngestionRequest {
   use_cache?: boolean;
   search_term?: string | null;
   location?: string | null;
+  is_remote?: boolean | null;
+  job_type?: string | null;
 }
 
 

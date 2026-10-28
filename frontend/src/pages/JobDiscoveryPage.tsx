@@ -101,7 +101,7 @@ export const JobDiscoveryPage: React.FC = () => {
   // Filter states
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [locationQuery, setLocationQuery] = useState<string>('');
-  const [workType, setWorkType] = useState<'all' | 'remote' | 'onsite'>('all');
+  const [workType, setWorkType] = useState<'all' | 'remote' | 'hybrid' | 'onsite'>('all');
   const [employmentType, setEmploymentType] = useState<'all' | 'full-time' | 'contract' | 'part-time'>('all');
   const [experienceLevel, setExperienceLevel] = useState<'all' | 'entry' | 'mid' | 'senior'>('all');
   const [sourceFilter, setSourceFilter] = useState<string>('all');
@@ -279,12 +279,20 @@ export const JobDiscoveryPage: React.FC = () => {
     try {
       try {
         const queryTerm = searchQuery.trim() || (profile?.target_titles?.[0]) || 'Software Engineer';
-        const locTerm = locationQuery.trim() || 'Remote';
+        let locTerm = locationQuery.trim();
+        if (!locTerm || locTerm.toLowerCase() === 'remote') {
+          locTerm = 'India';
+        }
+        const isRemoteParam = workType === 'remote' ? true : workType === 'onsite' ? false : undefined;
+        const jobTypeParam = employmentType !== 'all' ? employmentType : undefined;
+
         const resJobSpy = await ingestJobs({
           source: 'jobspy',
           limit: 15,
           search_term: queryTerm,
           location: locTerm,
+          is_remote: isRemoteParam,
+          job_type: jobTypeParam,
         });
         totalIngested += resJobSpy.new_ingested;
       } catch (err) {}
@@ -368,8 +376,15 @@ export const JobDiscoveryPage: React.FC = () => {
   const filteredJobs = (jobs || []).filter((job) => {
     if (!job) return false;
     if (hideDiscarded && discardsByJobId[job.id]) return false;
-    if (workType === 'remote' && !job.is_remote) return false;
-    if (workType === 'onsite' && job.is_remote) return false;
+
+    const fullJobText = `${job.title} ${job.location || ''} ${job.description || ''}`.toLowerCase();
+    const isJobHybrid = fullJobText.includes('hybrid');
+    const isJobRemote = job.is_remote || fullJobText.includes('remote') || fullJobText.includes('work from home');
+
+    if (workType === 'remote' && (!isJobRemote || isJobHybrid)) return false;
+    if (workType === 'hybrid' && !isJobHybrid) return false;
+    if (workType === 'onsite' && (isJobRemote || isJobHybrid)) return false;
+
     if (sourceFilter !== 'all' && (job.source || '').toLowerCase() !== sourceFilter.toLowerCase()) return false;
 
     if (experienceLevel !== 'all') {
@@ -600,7 +615,7 @@ export const JobDiscoveryPage: React.FC = () => {
               type="text"
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
-              placeholder="Location..."
+              placeholder="Location (e.g. India, Bengaluru, Mumbai)..."
               className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-blue-500 font-sans"
             />
           </div>
@@ -620,7 +635,7 @@ export const JobDiscoveryPage: React.FC = () => {
             </select>
           </div>
 
-          {/* Work Type Dropdown */}
+          {/* Work Mode Dropdown */}
           <div className="relative">
             <Globe className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
             <select
@@ -628,9 +643,10 @@ export const JobDiscoveryPage: React.FC = () => {
               onChange={(e) => setWorkType(e.target.value as any)}
               className="w-full bg-white border border-slate-300 rounded-lg pl-9 pr-3 py-1.5 text-xs text-slate-700 focus:outline-none focus:border-blue-500 appearance-none cursor-pointer"
             >
-              <option value="all">All Locations</option>
-              <option value="remote">Remote Only</option>
-              <option value="onsite">On-site / Office</option>
+              <option value="all">All Work Modes</option>
+              <option value="remote">🏠 Remote / WFH</option>
+              <option value="hybrid">🏢 Hybrid</option>
+              <option value="onsite">🏢 On-site / Office</option>
             </select>
           </div>
 
@@ -651,43 +667,95 @@ export const JobDiscoveryPage: React.FC = () => {
         </div>
 
         {/* Quick-Select Badges Rows */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-medium text-slate-500">Source:</span>
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] font-medium text-slate-500">Source:</span>
+              {[
+                { id: 'all', label: 'All' },
+                { id: 'linkedin', label: 'LinkedIn' },
+                { id: 'indeed', label: 'Indeed' },
+                { id: 'greenhouse', label: 'Greenhouse' },
+                { id: 'lever', label: 'Lever' },
+                { id: 'adzuna', label: 'Adzuna' },
+                { id: 'remotive', label: 'Remotive' },
+                { id: 'manual', label: 'Manual/Direct' },
+              ].map((src) => (
+                <button
+                  key={src.id}
+                  onClick={() => setSourceFilter(src.id)}
+                  className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
+                    sourceFilter === src.id
+                      ? 'bg-blue-50 text-blue-700 border-blue-300'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {src.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Hide Discarded Checkbox Toggle */}
+            <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hideDiscarded}
+                onChange={(e) => setHideDiscarded(e.target.checked)}
+                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>Hide Discarded ({Object.keys(discardsByJobId).length})</span>
+            </label>
+          </div>
+
+          {/* Quick Target Geographic Location Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-medium text-slate-500">Region:</span>
             {[
-              { id: 'all', label: 'All' },
-              { id: 'linkedin', label: 'LinkedIn' },
-              { id: 'indeed', label: 'Indeed' },
-              { id: 'greenhouse', label: 'Greenhouse' },
-              { id: 'lever', label: 'Lever' },
-              { id: 'adzuna', label: 'Adzuna' },
-              { id: 'remotive', label: 'Remotive' },
-              { id: 'manual', label: 'Manual/Direct' },
-            ].map((src) => (
+              { id: 'India', label: '🇮🇳 All India' },
+              { id: 'Bengaluru', label: 'Bengaluru' },
+              { id: 'Mumbai', label: 'Mumbai' },
+              { id: 'Hyderabad', label: 'Hyderabad' },
+              { id: 'Pune', label: 'Pune' },
+              { id: 'Delhi', label: 'Delhi/NCR' },
+              { id: 'Chennai', label: 'Chennai' },
+              { id: 'Noida', label: 'Noida/Gurgaon' },
+            ].map((loc) => (
               <button
-                key={src.id}
-                onClick={() => setSourceFilter(src.id)}
-                className={`px-2 py-0.5 rounded text-xs font-medium border transition-colors ${
-                  sourceFilter === src.id
-                    ? 'bg-blue-50 text-blue-700 border-blue-300'
+                key={loc.id}
+                onClick={() => setLocationQuery(locationQuery.toLowerCase() === loc.id.toLowerCase() ? '' : loc.id)}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  locationQuery.toLowerCase() === loc.id.toLowerCase()
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300 font-semibold'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                 }`}
               >
-                {src.label}
+                {loc.label}
               </button>
             ))}
           </div>
 
-          {/* Hide Discarded Checkbox Toggle */}
-          <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={hideDiscarded}
-              onChange={(e) => setHideDiscarded(e.target.checked)}
-              className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span>Hide Discarded ({Object.keys(discardsByJobId).length})</span>
-          </label>
+          {/* Work Mode / Arrangement Pills */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1">
+            <span className="text-[11px] font-medium text-slate-500">Work Mode:</span>
+            {[
+              { id: 'all', label: 'All Modes' },
+              { id: 'remote', label: '🏠 Remote / WFH' },
+              { id: 'hybrid', label: '🏢 Hybrid' },
+              { id: 'onsite', label: '🏢 On-site' },
+            ].map((mode) => (
+              <button
+                key={mode.id}
+                onClick={() => setWorkType(mode.id as any)}
+                className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors ${
+                  workType === mode.id
+                    ? 'bg-purple-50 text-purple-700 border-purple-300 font-semibold'
+                    : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                }`}
+              >
+                {mode.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -742,8 +810,24 @@ export const JobDiscoveryPage: React.FC = () => {
                         <span>•</span>
                         <span className="flex items-center gap-1">
                           <MapPin className="w-3.5 h-3.5 text-slate-400" />
-                          {job.location || (job.is_remote ? 'Remote' : 'Location N/A')}
+                          {job.location || 'India'}
                         </span>
+                        {job.is_remote && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-purple-700 bg-purple-50 px-1.5 py-0.5 rounded border border-purple-200">
+                              🏠 Remote
+                            </span>
+                          </>
+                        )}
+                        {(job.title + ' ' + (job.location || '') + ' ' + (job.description || '')).toLowerCase().includes('hybrid') && (
+                          <>
+                            <span>•</span>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-semibold text-blue-700 bg-blue-50 px-1.5 py-0.5 rounded border border-blue-200">
+                              🏢 Hybrid
+                            </span>
+                          </>
+                        )}
                       </div>
 
                       {/* Freshness & Origin Timestamps */}

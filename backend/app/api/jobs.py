@@ -58,7 +58,9 @@ async def ingest_jobs(
         adapter = JobSpyJobSourceAdapter(
             sites=sites,
             search_term=payload.search_term or "Software Engineer",
-            location=payload.location or "Remote",
+            location=payload.location or "India",
+            is_remote=payload.is_remote,
+            job_type=payload.job_type,
         )
     else:
         raise HTTPException(
@@ -72,6 +74,8 @@ async def ingest_jobs(
             adapter=adapter,
             limit=payload.limit,
             use_cache=payload.use_cache,
+            is_remote=payload.is_remote,
+            job_type=payload.job_type,
         )
         return result
     except FileNotFoundError as err:
