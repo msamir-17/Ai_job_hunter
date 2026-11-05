@@ -22,11 +22,11 @@
 | Phase | Problem Solved | Implementation Details | Evidence / Metric |
 | :--- | :--- | :--- | :--- |
 | **Phase 0: Evaluation & Calibration** | Static thresholds (`0.30` Cosine, `0.70` JEV) & 256-token MiniLM text truncation. | Isolated `Requirements & Skills` chunking before vector embedding. Built **Hybrid Search (BM25 + Dense Vectors)** with Cross-Encoder reranking on top 50. Derived dynamic experience ceiling (`max(cand_exp + 2.5, 3.0)`). | 150+ ground-truth labeled benchmark dataset. Threshold `0.20` calibrated with F1 Score `0.4615`, NDCG@10 `1.0000` (`docs/EVALUATION_BENCHMARK.md`). |
-| **Phase 1: Production Infrastructure** | Lack of DB migration history, CI test pipeline, and LLM cost visibility. | Implemented Alembic migrations (`c1c66fb3802d (head)`), GitHub Actions workflow ([`.github/workflows/ci.yml`](file:///.github/workflows/ci.yml)), and LLM Telemetry module (`app/llm/telemetry.py`) logging Latency, Tokens, & Cost ($ USD). | `alembic check` clean, 130+ unit tests passing in <6s, `npm run build` 0 errors. |
-| **Phase 2: Anti-Hallucination & Safety** | Risk of LLM fabricating metrics, tools, or unverified accomplishments. | Mandated `cited_fact_ids` in `TailoredResumeBullet` schema. Built `FactVerifierService` running a secondary Python check verifying metrics, numbers, and technical tools against profile facts. Added prompt-injection test suite. | 100% Zero-hallucination enforcement. Bullet drops automatically on ungrounded claims. |
+| **Phase 1: Production Infrastructure** | Lack of DB migration history, CI test pipeline, and LLM cost visibility. | Implemented Alembic migrations (`c1c66fb3802d (head)`), GitHub Actions workflow ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)), and LLM Telemetry module (`backend/app/llm/telemetry.py`) logging Latency, Tokens, & Cost ($ USD). | `alembic check` clean, 130+ unit tests passing in <6s, `npm run build` 0 errors. |
+| **Phase 2: Anti-Hallucination & Safety** | Risk of LLM fabricating metrics, tools, or unverified accomplishments. | Mandated `cited_fact_ids` in `TailoredResumeBullet` schema. Built `FactVerifierService` running a secondary Python check verifying metrics, numbers, and technical tools against profile facts. Added prompt-injection test suite. | Ungrounded metrics and tools are blocked. Semantic phrasing (e.g. leadership vs contribution) highlighted for candidate review. |
 | **Phase 3: Async Queue & State Machine** | Synchronous API calls freezing during large job ingestion batches due to rate limits. | Built Postgres-backed worker queue (`JobQueueWorker`) using `SELECT ... FOR UPDATE SKIP LOCKED`. Created `LLMCacheService` computing SHA-256 content hashes to eliminate duplicate LLM calls. | Multi-worker concurrency safety, $0 API cost for duplicate postings, DB states: `ingested` → `filtered` → `scored` → `tailored` → `notified`. |
 | **Phase 4: Feedback Loop & Personalization** | Static matching ignoring user Saves, Applies, and Discard reasons. | Implemented **Rocchio Vector Query Updates** ($q_{new} = \alpha q_{profile} + \beta \bar{S} - \gamma \bar{D}$). Logged structured discard reasons (`tech_stack_mismatch`, `wrong_location`, `wrong_seniority`). | Candidate query vector dynamically shifts toward liked jobs and away from disliked technical stacks. |
-| **Phase 5: Chrome Extension Sidecar** | Server-side Playwright scrapers getting blocked by ATS CAPTCHAs & TOS. | Built Manifest V3 Chrome Extension (`extension/`) with `MutationObserver` DOM auto-detection, React synthetic event dispatching, and yellow field highlights. | Safe, non-invasive HITL autofill on Greenhouse, Lever, and Workday (Never auto-submits). |
+| **Phase 5: Chrome Extension Sidecar** | Server-side Playwright scrapers getting blocked by ATS CAPTCHAs & TOS. | Built Manifest V3 Chrome Extension (`extension/`) with `MutationObserver` DOM auto-detection, React synthetic event dispatching, and yellow field highlights. | Safe, non-invasive HITL autofill on LinkedIn Easy Apply, Indeed, Naukri, Greenhouse, Lever, and Workday (User-initiated, never auto-submits). |
 
 ---
 
@@ -41,7 +41,7 @@ When reviewing this codebase with senior architects, we seek guidance on the fol
 
 ### ❓ Question 2: LLM Rate Limit & Worker Queue Scaling
 * **Context:** At 1,000 jobs/day (<1 job/min), our bottleneck is LLM rate limits and token costs, not database throughput.
-* **Current Approach:** We currently use PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` and ARQ background workers with content-hash LLM caching.
+* **Current Approach:** We currently use a dedicated PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` background queue worker with content-hash LLM caching (no Redis/ARQ operational overhead needed at our volume).
 * **Senior Advice Needed:** *At what scale (e.g., 50,000+ jobs/day across multiple candidates) should we migrate from a Postgres-backed DB queue to a distributed orchestration engine like Temporal.io or Celery + Redis?*
 
 ### ❓ Question 3: Cold-Start vs. Learned Preference Modeling
@@ -79,8 +79,8 @@ graph TD
 
 ## 5. Repository Quick Reference
 
-* **Full Evaluation Report:** [`docs/EVALUATION_BENCHMARK.md`](file:///c:/viva/Projects_New/Ai_job_hunter/docs/EVALUATION_BENCHMARK.md)
-* **Backend Entrypoint:** [`backend/app/main.py`](file:///c:/viva/Projects_New/Ai_job_hunter/backend/app/main.py)
-* **Fact Citation Verifier:** [`backend/app/services/fact_verifier.py`](file:///c:/viva/Projects_New/Ai_job_hunter/backend/app/services/fact_verifier.py)
-* **Async Job Queue:** [`backend/app/services/job_queue.py`](file:///c:/viva/Projects_New/Ai_job_hunter/backend/app/services/job_queue.py)
-* **Chrome Extension Manifest:** [`extension/manifest.json`](file:///c:/viva/Projects_New/Ai_job_hunter/extension/manifest.json)
+* **Full Evaluation Report:** [`docs/EVALUATION_BENCHMARK.md`](EVALUATION_BENCHMARK.md)
+* **Backend Entrypoint:** [`backend/app/main.py`](../backend/app/main.py)
+* **Fact Citation Verifier:** [`backend/app/services/fact_verifier.py`](../backend/app/services/fact_verifier.py)
+* **Async Job Queue:** [`backend/app/services/job_queue.py`](../backend/app/services/job_queue.py)
+* **Chrome Extension Manifest:** [`extension/manifest.json`](../extension/manifest.json)

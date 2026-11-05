@@ -59,7 +59,7 @@ We evaluate matching accuracy and anti-hallucination defenses using a stratified
 | **F1 Score@10** | `0.8965` | `0.9044` | **+0.0079 Optimal Trade-off** |
 | **Verifier Red-Team Defense** | - | `100.00%` | **100% Adversarial Rejection** |
 
-> For full calibration grid search details, alert threshold derivation, and methodology, see [`docs/EVALUATION_BENCHMARK.md`](file:///c:/viva/Projects_New/Ai_job_hunter/docs/EVALUATION_BENCHMARK.md).
+> For full calibration grid search details, alert threshold derivation, and methodology, see [`docs/EVALUATION_BENCHMARK.md`](docs/EVALUATION_BENCHMARK.md).
 
 ## Key Architecture & Portfolio Features
 
