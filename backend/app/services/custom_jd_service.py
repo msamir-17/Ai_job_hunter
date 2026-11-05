@@ -14,11 +14,15 @@ from typing import Dict, List, Optional, Tuple, Any
 
 from app.core.archetypes import classify_job_archetype
 from app.schemas.ats_resume import ATSTailoredResume
-from app.schemas.candidate_facts import CandidateTruthVault
+from app.schemas.candidate_facts import CandidateFact, CandidateTruthVault, FactCategory
 from app.schemas.tailoring import (
     ColdOutreachMessage,
+    ConfirmedSkillEntry,
     CustomJDTailoringRequest,
     CustomJDTailoringResponse,
+    MissingSkillPromptItem,
+    PreTailoringAuditRequest,
+    PreTailoringAuditResponse,
     RecruiterAuditGapItem,
     RecruiterAuditResult,
 )
@@ -127,6 +131,123 @@ class CustomJDTailoringService:
         skills_found = sorted(list(set(skills_found)))
 
         return final_title, final_company, skills_found
+
+    @staticmethod
+    def generate_pre_tailoring_interview(
+        vault: CandidateTruthVault,
+        raw_text: Optional[str] = None,
+        provided_title: Optional[str] = None,
+        provided_company: Optional[str] = None,
+        request: Optional[PreTailoringAuditRequest] = None,
+    ) -> PreTailoringAuditResponse:
+        """
+        Analyzes the target JD against candidate truth vault before tailoring.
+        Identifies missing skills and prepares interactive interview questions so the candidate
+        can legitimately confirm hands-on knowledge without hallucination.
+        """
+        if request is not None:
+            raw_text = request.job_description
+            provided_title = request.job_title
+            provided_company = request.company_name
+        raw_text = raw_text or ""
+
+        target_title, target_company, skills_found = CustomJDTailoringService.smart_extract_job_details(
+            raw_text=raw_text,
+            provided_title=provided_title,
+            provided_company=provided_company,
+        )
+
+        candidate_skills_lower = set()
+        for cat_skills in (vault.skills_inventory or {}).values():
+            for s in cat_skills:
+                candidate_skills_lower.add(s.lower().strip())
+
+        matched_skills: List[str] = []
+        missing_skills_items: List[MissingSkillPromptItem] = []
+
+        for skill in skills_found:
+            s_clean = skill.lower().strip()
+            if s_clean in candidate_skills_lower:
+                matched_skills.append(skill)
+            else:
+                q = f"Kya aapne '{skill}' par kisi personal project, academic work, ya internship mein kaam kiya hai?"
+                proof = f"e.g. Built or integrated {skill} for data pipelines, API services, or automation."
+                missing_skills_items.append(
+                    MissingSkillPromptItem(
+                        skill_name=skill,
+                        sample_question=q,
+                        example_proof=proof,
+                    )
+                )
+
+        if missing_skills_items:
+            miss_names = ", ".join([m.skill_name for m in missing_skills_items[:5]])
+            interview_prompt = (
+                f"Maine aapki target Job Description analyze ki aur dekha ki {target_company} ke {target_title} role ke liye JD me yeh skills demanded hain jo aapke profile me list nahi hain: "
+                f"[{miss_names}]. Kya aapne inme se kisi par kaam kiya hai? "
+                "Agar haan, toh select karein aur 1-line note batayein taaki hum bina kisi jhooth ke inhe legally aapke resume me tailor kar sakein!"
+            )
+        else:
+            interview_prompt = f"Zabardast! {target_company} ke {target_title} role ke saare primary skills aapke profile me match ho rahe hain. Resume directly tailor karne ke liye ready hai."
+
+        return PreTailoringAuditResponse(
+            job_title=target_title,
+            company_name=target_company,
+            matched_skills=matched_skills,
+            missing_skills=missing_skills_items,
+            interview_prompt=interview_prompt,
+        )
+
+    @staticmethod
+    def merge_confirmed_skills(
+        vault: CandidateTruthVault,
+        confirmed_skills: List[ConfirmedSkillEntry],
+    ) -> CandidateTruthVault:
+        """
+        Dynamically merges candidate-confirmed skills into the truth vault with user consent.
+        Prevents hallucination by strictly recording candidate's explicit confirmation with zero fabricated metrics.
+        """
+        if not confirmed_skills:
+            return vault
+
+        inventory = vault.skills_inventory or {}
+        additional_skills = inventory.setdefault("Candidate Confirmed Skills", [])
+
+        for entry in confirmed_skills:
+            if not getattr(entry, "known", True):
+                continue
+            s_name = (entry.skill_name or "").strip()
+            if not s_name:
+                continue
+            if s_name not in additional_skills:
+                additional_skills.append(s_name)
+
+            clean_id = re.sub(r"[^a-zA-Z0-9_]", "_", s_name.lower())
+            fact_id = f"confirmed_skill_{clean_id}"
+            if not any(f.fact_id == fact_id for f in (vault.facts or [])):
+                note = entry.user_experience_note.strip()
+                phrasing = (
+                    f"Applied {s_name} in engineering workflows: {note}."
+                    if note
+                    else f"Hands-on engineering application with {s_name}."
+                )
+                vault.facts.append(
+                    CandidateFact(
+                        fact_id=fact_id,
+                        category=FactCategory.SKILL,
+                        entity_name=f"Verified Competency: {s_name}",
+                        tags=[s_name.lower()],
+                        metrics=[],  # Strictly ZERO fabricated metrics
+                        phrasings={
+                            "default": phrasing,
+                            "genai": phrasing,
+                            "swe": phrasing,
+                        },
+                        is_flagship=False,
+                    )
+                )
+
+        return vault
 
     @staticmethod
     def perform_recruiter_audit(
@@ -248,23 +369,37 @@ class CustomJDTailoringService:
         if missing_skills:
             actionable_suggestions.append(f"In your interview and cover letter, transparently acknowledge {missing_skills[0]} while anchoring on your verified adjacent strengths.")
 
-        # 6. Recruiter Notes (Hinglish or English)
+        # 6. Recruiter Notes (Structured 4-Section Hinglish/English Evaluation)
+        gap_summary = "\n".join([f"   - **{m.missing_tech}**: Missing in profile. Recommended action: {m.recommended_action}" for m in gap_table[:4]]) or "   - No critical technical skills missing."
+        truths_summary = "\n".join([f"   - {ht}" for ht in hard_truths])
+        actions_summary = "\n".join([f"   - {act}" for act in actionable_suggestions])
+
         if language_tone.lower() == "hinglish":
             critique = (
-                f"Recruiter 6-Second Evaluation: {target_company} ke {target_title} role ke liye aapka ATS Score {ats_score}/10 hai "
-                f"(Shortlist Odds: {shortlist_chance}). "
-                f"Aapka core engineering stack ({', '.join(matched_skills[:3]) if matched_skills else 'Software'}) strong hai, "
-                f"lekin JD ke {len(missing_skills)} core skills ({', '.join(missing_skills[:3])}) resume mein direct missing hain. "
-                "Recruiter bina metrics aur scale ke generic lines ('hard worker', 'fast learner') ko 6 second mein reject kar deta hai. "
-                "Humne aapke 1-page resume mein verified facts ko Action + Result formula par tailor kiya hai taaki gap safely bridge ho sake."
+                f"### 🎯 Elite Technical Recruiter & ATS Scanner Review\n\n"
+                f"1. **ATS Score & Selection Chances**:\n"
+                f"   - **Score**: {ats_score} / 10\n"
+                f"   - **Shortlist Likelihood**: **{shortlist_chance}** ({target_company} — {target_title})\n\n"
+                f"2. **Skill Gap Analysis (Missing Elements)**:\n"
+                f"{gap_summary}\n\n"
+                f"3. **Hard Truths (Why I might get rejected)**:\n"
+                f"{truths_summary}\n\n"
+                f"4. **Actionable Suggestions (Exact Rewrites)**:\n"
+                f"{actions_summary}\n\n"
+                f"> **Recruiter Note**: Resume ko 1-page strict layout par lock kiya gaya hai. Humne ungrounded buzzwords hata kar Action + Result metrics front-load kar diye hain."
             )
         else:
             critique = (
-                f"Recruiter 6-Second Evaluation: For {target_title} at {target_company}, your strict ATS Score is {ats_score}/10 "
-                f"with '{shortlist_chance}' shortlist probability. "
-                f"Your verified profile demonstrates solid strength in {', '.join(matched_skills[:3]) if matched_skills else 'core engineering'}, "
-                f"while {len(missing_skills)} key JD requirements ({', '.join(missing_skills[:3])}) represent addressable gaps. "
-                "We structured your single-page tailored draft with Action + Result metrics and purged all fresher filler clichés."
+                f"### 🎯 Elite Technical Recruiter & ATS Scanner Review\n\n"
+                f"1. **ATS Score & Selection Chances**:\n"
+                f"   - **Score**: {ats_score} / 10\n"
+                f"   - **Shortlist Likelihood**: **{shortlist_chance}** ({target_company} — {target_title})\n\n"
+                f"2. **Skill Gap Analysis (Missing Elements)**:\n"
+                f"{gap_summary}\n\n"
+                f"3. **Hard Truths (Why I might get rejected)**:\n"
+                f"{truths_summary}\n\n"
+                f"4. **Actionable Suggestions (Exact Rewrites)**:\n"
+                f"{actions_summary}\n"
             )
 
         return RecruiterAuditResult(
@@ -331,6 +466,11 @@ class CustomJDTailoringService:
             provided_title=request.job_title,
             provided_company=request.company_name,
         )
+
+        # Merge candidate confirmed missing skills if provided
+        confirmed = getattr(request, "confirmed_skills", None)
+        if confirmed:
+            vault = CustomJDTailoringService.merge_confirmed_skills(vault, confirmed)
 
         # 2. Assemble 1-Page ATS Resume via FactSelectorEngine
         tailored_resume: ATSTailoredResume = FactSelectorEngine.assemble_tailored_resume(

@@ -130,6 +130,46 @@ class ColdOutreachMessage(BaseModel):
     target_platform: str = Field(default="LinkedIn", description="'LinkedIn' or 'Email'")
 
 
+class MissingSkillPromptItem(BaseModel):
+    skill_name: str
+    sample_question: str = Field(description="Interactive question asking the candidate if they know this skill")
+    example_proof: str = Field(description="Example of what the candidate could provide if they know this skill")
+
+
+class ConfirmedSkillEntry(BaseModel):
+    skill_name: str = Field(alias="skill", default="")
+    user_experience_note: str = Field(alias="context_notes", default="", description="Candidate's 1-line note explaining how they used this skill")
+    known: bool = Field(default=True, description="Whether the user actually knows or confirms this skill")
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
+class PreTailoringAuditRequest(BaseModel):
+    job_description: str = Field(..., min_length=20, description="Raw job description text or pasted vacancy")
+    job_title: str | None = Field(default=None, description="Optional target title")
+    company_name: str | None = Field(default=None, description="Optional target company")
+
+
+class PreTailoringAuditResponse(BaseModel):
+    job_title: str
+    company_name: str
+    matched_skills: list[str]
+    missing_skills: list[MissingSkillPromptItem]
+    interview_prompt: str = Field(description="Hinglish question prompt asking candidate to confirm missing skills before tailoring")
+
+
+class ConfirmSkillsAndTailorRequest(BaseModel):
+    job_description: str = Field(..., min_length=20, description="Raw job description text")
+    job_title: str | None = Field(default=None)
+    company_name: str | None = Field(default=None)
+    confirmed_skills: list[ConfirmedSkillEntry] = Field(
+        default_factory=list,
+        description="List of previously missing skills confirmed by the user with brief context notes",
+    )
+    language_tone: str = Field(default="hinglish", description="'hinglish' or 'english'")
+    save_to_tracker: bool = Field(default=False)
+
+
 class CustomJDTailoringRequest(BaseModel):
     job_title: str | None = Field(default=None, description="Target job title (auto-extracted from JD if omitted)")
     company_name: str | None = Field(default=None, description="Target company name (auto-extracted if omitted)")

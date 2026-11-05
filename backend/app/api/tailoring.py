@@ -19,11 +19,14 @@ from app.schemas.candidate_facts import CandidateTruthVault
 from app.schemas.tailoring import (
     AntiHallucinationAuditResult,
     ATSTailoringRequest,
+    ConfirmSkillsAndTailorRequest,
     CustomJDTailoringRequest,
     CustomJDTailoringResponse,
     DocumentAuditRequest,
     DocumentTailoringRequest,
     DocumentTailoringResponse,
+    PreTailoringAuditRequest,
+    PreTailoringAuditResponse,
 )
 from app.services.custom_jd_service import CustomJDTailoringService
 from app.services.document_tailoring import DocumentTailoringService
@@ -58,7 +61,7 @@ async def _verify_candidate_ownership(
     return candidate
 
 
-def _load_truth_vault(candidate: CandidateProfile) -> CandidateTruthVault:
+def _load_truth_vault(candidate: CandidateProfile | None = None) -> CandidateTruthVault:
     """Helper to load candidate verified facts, merging profile attributes."""
     if FACTS_DATA_PATH.exists():
         with open(FACTS_DATA_PATH, "r", encoding="utf-8") as f:
@@ -66,14 +69,14 @@ def _load_truth_vault(candidate: CandidateProfile) -> CandidateTruthVault:
         vault = CandidateTruthVault.model_validate(data)
     else:
         vault = CandidateTruthVault(
-            candidate_name=getattr(candidate, "full_name", "") or "Mohd Samir",
-            headline=candidate.headline or "AI/ML Engineer",
-            email="samir.dev@example.com",
+            candidate_name="MOHAMMAD SAMIR KHAN",
+            headline="AI/GenAI Engineer & Backend Systems Developer",
+            email="samirkhan003786@gmail.com",
             location="Mumbai, India",
         )
 
     # If candidate profile has headline, prefer it
-    if candidate.headline:
+    if candidate and candidate.headline:
         vault.headline = candidate.headline
     return vault
 
@@ -261,24 +264,17 @@ async def convert_ats_resume_json_to_pdf(
 )
 async def tailor_custom_external_jd(
     payload: CustomJDTailoringRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User | None = Depends(get_current_user_optional),
     db: AsyncSession = Depends(get_db),
 ) -> CustomJDTailoringResponse:
-    # 1. Fetch CandidateProfile for authenticated user
-    stmt_cand = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
-    candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
-
-    if not candidate:
-        # Check if there is any profile to seed from
-        stmt_seed = select(CandidateProfile).limit(1)
-        candidate = (await db.execute(stmt_seed)).scalar_one_or_none()
-
-    if not candidate:
-        candidate = CandidateProfile(
-            headline="Lead AI Architect & Systems Developer",
-            summary="Experienced in FastAPI, pgvector RAG systems, and LLM evaluation benchmarks.",
-            skills=["Python", "FastAPI", "PostgreSQL", "PyTorch", "Docker"],
-        )
+    # 1. Fetch CandidateProfile for authenticated user if logged in
+    candidate = None
+    if current_user:
+        try:
+            stmt_cand = select(CandidateProfile).where(CandidateProfile.user_id == current_user.id)
+            candidate = (await db.execute(stmt_cand)).scalar_one_or_none()
+        except Exception:
+            candidate = None
 
     vault = _load_truth_vault(candidate)
 
@@ -289,34 +285,88 @@ async def tailor_custom_external_jd(
     )
 
     # 3. Optional: Persist to Application Tracker
-    if payload.save_to_tracker:
-        new_job = Job(
-            source="custom_paste",
-            external_id=f"custom_{current_user.id}_{uuid.uuid4().hex[:8]}",
-            title=response.job_title,
-            company=response.company_name,
-            description_raw=payload.job_description,
-            skills_required=response.recruiter_audit.gap_table and [g.missing_tech for g in response.recruiter_audit.gap_table] or [],
-            is_active=True,
-        )
-        db.add(new_job)
-        await db.flush()
-
-        # Link JobMatch if candidate exists in DB
-        if candidate and candidate.id:
-            match = JobMatch(
-                candidate_profile_id=candidate.id,
-                job_id=new_job.id,
-                overall_score=response.recruiter_audit.ats_score / 10.0,
-                status="saved",
+    if payload.save_to_tracker and current_user:
+        try:
+            new_job = Job(
+                source="custom_paste",
+                external_id=f"custom_{current_user.id}_{uuid.uuid4().hex[:8]}",
+                title=response.job_title,
+                company=response.company_name,
+                description_raw=payload.job_description,
+                skills_required=response.recruiter_audit.gap_table and [g.missing_tech for g in response.recruiter_audit.gap_table] or [],
+                is_active=True,
             )
-            db.add(match)
+            db.add(new_job)
+            await db.flush()
 
-        await db.commit()
-        await db.refresh(new_job)
-        response.job_id = new_job.id
+            # Link JobMatch if candidate exists in DB
+            if candidate and candidate.id:
+                match = JobMatch(
+                    candidate_profile_id=candidate.id,
+                    job_id=new_job.id,
+                    overall_score=response.recruiter_audit.ats_score / 10.0,
+                    status="saved",
+                )
+                db.add(match)
+
+            await db.commit()
+            await db.refresh(new_job)
+            response.job_id = new_job.id
+        except Exception:
+            pass
 
     return response
+
+
+@router.post(
+    "/pre-audit",
+    response_model=PreTailoringAuditResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Interactive Pre-Tailoring Skill Interview",
+    description="Analyzes the target JD against the truth vault, detects missing skills, and asks the user in conversational Hinglish if they know them before tailoring.",
+)
+async def pre_tailoring_audit(
+    payload: PreTailoringAuditRequest,
+) -> PreTailoringAuditResponse:
+    vault = _load_truth_vault()
+    return CustomJDTailoringService.generate_pre_tailoring_interview(
+        vault=vault,
+        request=payload,
+    )
+
+
+@router.post(
+    "/confirm-and-tailor",
+    response_model=CustomJDTailoringResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Confirm skills and tailor resume",
+    description="Merges user-confirmed missing skills into the candidate truth vault without hallucination, and generates the tailored resume and recruiter review.",
+)
+async def confirm_skills_and_tailor(
+    payload: ConfirmSkillsAndTailorRequest,
+) -> CustomJDTailoringResponse:
+    vault = _load_truth_vault()
+
+    # Merge confirmed skills into vault
+    updated_vault = CustomJDTailoringService.merge_confirmed_skills(
+        vault=vault,
+        confirmed_skills=payload.confirmed_skills,
+    )
+
+    tailoring_request = CustomJDTailoringRequest(
+        job_description=payload.job_description,
+        job_title=payload.job_title,
+        company_name=payload.company_name,
+        language_tone=payload.language_tone,
+        save_to_tracker=False,
+    )
+
+    # Run tailoring with updated vault
+    return CustomJDTailoringService.tailor_custom_jd(
+        vault=updated_vault,
+        request=tailoring_request,
+    )
+
 
 
 

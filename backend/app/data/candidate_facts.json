@@ -1,25 +1,41 @@
 {
-  "candidate_name": "Mohd Samir",
-  "headline": "AI/ML Engineer & Backend Systems Developer",
-  "email": "samir.dev@example.com",
-  "location": "Mumbai, India (Open to Remote / Relocation)",
-  "github_url": "https://github.com/msamir-17",
-  "linkedin_url": "https://linkedin.com/in/msamir",
-  "portfolio_url": "https://samir.dev",
+  "candidate_name": "MOHAMMAD SAMIR KHAN",
+  "headline": "AI/GenAI Engineer & Backend Systems Developer",
+  "email": "samirkhan003786@gmail.com",
+  "location": "Mumbai, India",
+  "github_url": "https://github.com/samirkhan",
+  "linkedin_url": "https://linkedin.com/in/samirkhan",
+  "portfolio_url": "https://samirkhan.dev",
   "education": [
     {
-      "fact_id": "edu_btech_cs",
+      "fact_id": "edu_viva_tech",
       "category": "education",
-      "entity_name": "Mumbai University",
-      "role_or_title": "Bachelor of Technology in Computer Science",
-      "start_date": "2020",
-      "end_date": "Graduated",
-      "tags": ["education", "computer_science", "algorithms"],
+      "entity_name": "Viva Institute of Technology, Mumbai",
+      "role_or_title": "B.E., Computer Science (AI/ML Specialization)",
+      "start_date": "2023",
+      "end_date": "Jun 2026",
+      "tags": ["education", "computer_science", "ai_ml"],
       "metrics": [],
       "phrasings": {
-        "default": "Bachelor of Technology in Computer Science, Mumbai University (Graduated).",
-        "genai": "B.Tech in Computer Science, Mumbai University — Focused on Artificial Intelligence and Natural Language Processing (Graduated).",
-        "swe": "B.Tech in Computer Science, Mumbai University — Coursework in Distributed Systems, Database Management, and Operating Systems (Graduated)."
+        "default": "B.E., Computer Science (AI/ML Specialization) — Viva Institute of Technology, Mumbai — Graduated: Jun 2026",
+        "genai": "B.E., Computer Science (AI/ML Specialization) — Viva Institute of Technology, Mumbai — Graduated: Jun 2026",
+        "swe": "B.E., Computer Science (AI/ML Specialization) — Viva Institute of Technology, Mumbai — Graduated: Jun 2026"
+      },
+      "is_flagship": false
+    },
+    {
+      "fact_id": "edu_pravin_patil",
+      "category": "education",
+      "entity_name": "Pravin Patil Polytechnic, Mumbai",
+      "role_or_title": "Diploma, Computer Science & Engineering",
+      "start_date": "2020",
+      "end_date": "Jun 2023",
+      "tags": ["education", "computer_science", "diploma"],
+      "metrics": [],
+      "phrasings": {
+        "default": "Diploma, Computer Science & Engineering — Pravin Patil Polytechnic, Mumbai — Graduated: Jun 2023",
+        "genai": "Diploma, Computer Science & Engineering — Pravin Patil Polytechnic, Mumbai — Graduated: Jun 2023",
+        "swe": "Diploma, Computer Science & Engineering — Pravin Patil Polytechnic, Mumbai — Graduated: Jun 2023"
       },
       "is_flagship": false
     }
