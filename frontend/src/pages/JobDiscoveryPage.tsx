@@ -5,14 +5,12 @@ import {
   RotateCw,
   BookmarkPlus,
   MapPin,
-  Download,
   X,
   Clock,
   Award,
   RotateCcw,
   Sparkles,
   ExternalLink,
-  Plus,
   LayoutGrid,
   Columns,
   Check,
@@ -24,7 +22,7 @@ import { CandidateProfileResponse } from '../types/candidateProfile';
 import { PipelineRunResponse } from '../types/matching';
 import { FeedbackResponse } from '../types/feedback';
 import { CustomJDTailoringResponse } from '../types/tailoring';
-import { listJobs, ingestJobs } from '../api/jobs';
+import { listJobs } from '../api/jobs';
 import { getActiveCandidateProfile } from '../api/candidateProfile';
 import {
   runMatchingPipeline,
@@ -37,7 +35,6 @@ import { MatchDetailModal } from '../components/matching/MatchDetailModal';
 import { TailoringWorkspaceModal } from '../components/tailoring/TailoringWorkspaceModal';
 import { CustomJDPasteModal } from '../components/tailoring/CustomJDPasteModal';
 import { DiscardReasonModal } from '../components/matching/DiscardReasonModal';
-import { WorkerQueueMonitor } from '../components/matching/WorkerQueueMonitor';
 import { QuickAddJobModal } from '../components/jobs/QuickAddJobModal';
 import { formatRelativeTime } from '../utils/formatTime';
 
@@ -112,9 +109,6 @@ export const JobDiscoveryPage: React.FC = () => {
   const [jobError, setJobError] = useState<string | null>(null);
 
   // Ingestion state
-  const [isIngesting, setIsIngesting] = useState<boolean>(false);
-  const [ingestionStep, setIngestionStep] = useState<string | null>(null);
-  const [ingestionBanner, setIngestionBanner] = useState<string | null>(null);
 
   // Match cache state
   const [matchesByJobId, setMatchesByJobId] = useState<Record<string, PipelineRunResponse>>({});
@@ -336,87 +330,6 @@ export const JobDiscoveryPage: React.FC = () => {
     }
   };
 
-  const handleLoadJobs = async () => {
-    setIsIngesting(true);
-    setIngestionBanner(null);
-    let totalIngested = 0;
-
-    try {
-      const queryTerm = searchQuery.trim() || (profile?.target_titles?.[0]) || 'Software Engineer';
-      let locTerm = locationQuery.trim();
-      if (!locTerm || locTerm.toLowerCase() === 'remote') {
-        locTerm = 'India';
-      }
-      const isRemoteParam = workType === 'remote' ? true : workType === 'onsite' ? false : undefined;
-      const jobTypeParam = employmentType !== 'all' ? employmentType : undefined;
-
-      // Ingest live LinkedIn jobs
-      setIngestionStep('Syncing live opportunities from LinkedIn...');
-      try {
-        const resLinkedIn = await ingestJobs({
-          source: 'linkedin',
-          limit: 15,
-          search_term: queryTerm,
-          location: locTerm,
-          is_remote: isRemoteParam,
-          job_type: jobTypeParam,
-        });
-        totalIngested += resLinkedIn.new_ingested;
-      } catch (err) {}
-
-      // Ingest live Indeed jobs
-      setIngestionStep('Syncing live opportunities from Indeed...');
-      try {
-        const resIndeed = await ingestJobs({
-          source: 'indeed',
-          limit: 15,
-          search_term: queryTerm,
-          location: locTerm,
-          is_remote: isRemoteParam,
-          job_type: jobTypeParam,
-        });
-        totalIngested += resIndeed.new_ingested;
-      } catch (err) {}
-
-      setIngestionStep('Checking Greenhouse & Lever direct company boards...');
-      try {
-        const resGreenhouse = await ingestJobs({ source: 'greenhouse', limit: 15 });
-        totalIngested += resGreenhouse.new_ingested;
-      } catch (err) {}
-
-      try {
-        const resLever = await ingestJobs({ source: 'lever', limit: 20 });
-        totalIngested += resLever.new_ingested;
-      } catch (err) {}
-
-      setIngestionStep('Aggregating Adzuna & Remotive portals...');
-      try {
-        const resAdzuna = await ingestJobs({ source: 'adzuna', limit: 15 });
-        totalIngested += resAdzuna.new_ingested;
-      } catch (err) {}
-
-      try {
-        const resRemotive = await ingestJobs({ source: 'remotive', limit: 15 });
-        totalIngested += resRemotive.new_ingested;
-      } catch (err) {}
-
-      if (totalIngested === 0) {
-        try {
-          await ingestJobs({ source: 'manual' });
-        } catch (err) {}
-      }
-
-      setIngestionStep('Finalizing fresh job listings...');
-      await loadJobs();
-      setIngestionBanner(`Successfully loaded latest job listings.`);
-    } catch (err: any) {
-      setIngestionBanner(`Failed to load jobs: ${err.message}`);
-    } finally {
-      setIsIngesting(false);
-      setIngestionStep(null);
-    }
-  };
-
   const handleRunPipeline = async (job: Job) => {
     if (!profile) return;
     setAnalyzingJobIds((prev) => ({ ...prev, [job.id]: true }));
@@ -544,62 +457,16 @@ export const JobDiscoveryPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-4">
+    <div className="max-w-7xl mx-auto px-3 sm:px-6 py-3.5 space-y-3">
       {/* Top Fixed Linear Progress Bar for Refresh / Ingestion */}
-      {(isLoadingJobs || isRefreshing || isIngesting) && (
+      {(isLoadingJobs || isRefreshing) && (
         <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-blue-100 overflow-hidden shadow-sm">
           <div className="h-full bg-gradient-to-r from-[#0a66c2] via-indigo-500 to-sky-400 animate-indeterminate" />
         </div>
       )}
 
-      {/* Action Bar */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-sm">
-        <div className="flex items-center gap-2 justify-end flex-wrap">
-          <button
-            onClick={() => setIsQuickAddModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all"
-            title="Import custom job via ATS URL (Greenhouse, Lever) or paste text"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">+ Import Job / URL</span>
-            <span className="sm:hidden">+ Import</span>
-          </button>
-          <button
-            onClick={() => setIsCustomJDModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm transition-all"
-            title="Paste any external Job Description to tailor resume, audit gaps, and generate cold message"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">+ Paste JD</span>
-            <span className="sm:hidden">Paste</span>
-          </button>
-          <button
-            onClick={handleLoadJobs}
-            disabled={isIngesting || isLoadingJobs || isRefreshing}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#0a66c2] hover:bg-[#004182] text-white shadow-sm transition-all disabled:opacity-50"
-            title="Load live jobs from connected API sources (LinkedIn, Indeed, etc.)"
-          >
-            <Download className={`w-3.5 h-3.5 ${isIngesting ? 'animate-spin' : ''}`} />
-            {isIngesting ? (ingestionStep ? 'Loading Live...' : 'Loading...') : 'Load Live Jobs'}
-          </button>
-          <button
-            onClick={refreshJobs}
-            disabled={isLoadingJobs || isRefreshing || isIngesting}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border shadow-sm transition-all ${
-              isRefreshing
-                ? 'bg-blue-50 text-[#0a66c2] border-blue-200 cursor-not-allowed'
-                : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border-slate-200'
-            }`}
-            title="Refresh current jobs list and qualification matches"
-          >
-            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing || isLoadingJobs ? 'animate-spin text-[#0a66c2]' : ''}`} />
-            <span>{isRefreshing ? 'Refreshing...' : 'Refresh Jobs'}</span>
-          </button>
-        </div>
-      </div>
-
       {/* Live Refresh / Ingestion Progress Card */}
-      {(isRefreshing || isIngesting) && (
+      {isRefreshing && (
         <div className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200 rounded-2xl p-3.5 shadow-sm flex items-center justify-between gap-3 animate-fadeIn">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-white border border-blue-200 flex items-center justify-center shadow-xs">
@@ -607,14 +474,10 @@ export const JobDiscoveryPage: React.FC = () => {
             </div>
             <div>
               <p className="text-xs font-bold text-slate-800">
-                {isIngesting
-                  ? (ingestionStep || 'Fetching live opportunities from portals...')
-                  : 'Refreshing opportunities & match scores...'}
+                'Refreshing opportunities & match scores...'
               </p>
               <p className="text-[11px] text-slate-500">
-                {isIngesting
-                  ? 'Syncing LinkedIn, Indeed, Greenhouse and Lever postings'
-                  : 'Re-evaluating qualification criteria and active filters'}
+                'Re-evaluating qualification criteria and active filters'
               </p>
             </div>
           </div>
@@ -623,9 +486,6 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
         </div>
       )}
-
-      {/* Background Worker Daemon & Pipeline Queue Monitor */}
-      <WorkerQueueMonitor onCycleTriggered={loadJobs} />
 
       {/* Feedback Status Alert */}
       {feedbackAlert && (
@@ -637,37 +497,27 @@ export const JobDiscoveryPage: React.FC = () => {
         </div>
       )}
 
-      {/* Ingestion Status Banner */}
-      {ingestionBanner && (
-        <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-center justify-between shadow-sm">
-          <span>{ingestionBanner}</span>
-          <button onClick={() => setIngestionBanner(null)} className="text-slate-400 hover:text-slate-600 p-0.5">
-            <X className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      )}
-
       {/* ========================================================================= */}
       {/* LINKEDIN SCREENSHOT 2: UNIFIED SEARCH & PILL FILTERS BAR                 */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-sm space-y-3 relative">
+      <div className="bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 shadow-2xs space-y-1.5 relative">
         {/* Top: LinkedIn Search Input with Location */}
         <div className="flex flex-col sm:flex-row items-center gap-2">
           {/* Keyword Search Input */}
           <div className="flex-1 relative w-full">
-            <Search className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+            <Search className="absolute left-3 top-2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search by title, skill, or company (e.g. Python, AI/ML, Full Stack)..."
-              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-full pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
+              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-full pl-9 pr-7 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
             />
             {searchQuery && (
               <button
                 type="button"
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -676,19 +526,19 @@ export const JobDiscoveryPage: React.FC = () => {
 
           {/* Location Input */}
           <div className="w-full sm:w-72 relative">
-            <MapPin className="absolute left-3.5 top-2.5 w-4 h-4 text-slate-400" />
+            <MapPin className="absolute left-3 top-2 w-3.5 h-3.5 text-slate-400" />
             <input
               type="text"
               value={locationQuery}
               onChange={(e) => setLocationQuery(e.target.value)}
               placeholder="City, State, or India..."
-              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-full pl-10 pr-8 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
+              className="w-full bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0a66c2] rounded-full pl-9 pr-7 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none transition-all shadow-inner"
             />
             {locationQuery && (
               <button
                 type="button"
                 onClick={() => setLocationQuery('')}
-                className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
+                className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -699,7 +549,7 @@ export const JobDiscoveryPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAllFiltersOpen(!isAllFiltersOpen)}
-            className={`w-full sm:w-auto px-4 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-2 border transition-all shrink-0 cursor-pointer shadow-sm ${
+            className={`w-full sm:w-auto px-3.5 py-1.5 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 border transition-all shrink-0 cursor-pointer shadow-2xs ${
               isAllFiltersOpen || activeDropdownFiltersCount > 0
                 ? 'bg-[#0a66c2] text-white border-[#0a66c2]'
                 : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300'
@@ -1078,12 +928,19 @@ export const JobDiscoveryPage: React.FC = () => {
         )}
 
         {/* Results Counter & View Controls Sub-bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-1.5 border-t border-slate-100 text-xs">
           <div className="flex items-center gap-2 text-xs text-slate-600 font-medium">
             <span>
               <strong className="text-slate-900 font-bold">{filteredJobs.length}</strong> results
             </span>
-
+            <button
+              onClick={refreshJobs}
+              disabled={isLoadingJobs || isRefreshing}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              title="Refresh jobs"
+            >
+              <RotateCw className={`w-3.5 h-3.5 ${isRefreshing || isLoadingJobs ? 'animate-spin text-[#0a66c2]' : ''}`} />
+            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -1101,7 +958,7 @@ export const JobDiscoveryPage: React.FC = () => {
             <div className="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg">
               <button
                 onClick={() => setViewMode('split')}
-                className={`p-1.5 rounded-md text-xs transition-all ${
+                className={`p-1 rounded-md text-xs transition-all ${
                   viewMode === 'split'
                     ? 'bg-white text-[#0a66c2] shadow-sm font-semibold'
                     : 'text-slate-500 hover:text-slate-800'
@@ -1112,7 +969,7 @@ export const JobDiscoveryPage: React.FC = () => {
               </button>
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-1.5 rounded-md text-xs transition-all ${
+                className={`p-1 rounded-md text-xs transition-all ${
                   viewMode === 'grid'
                     ? 'bg-white text-[#0a66c2] shadow-sm font-semibold'
                     : 'text-slate-500 hover:text-slate-800'
