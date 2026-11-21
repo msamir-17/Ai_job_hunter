@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { CandidateProfileResponse } from '../types/candidateProfile';
 import { ResumeDraft } from '../types/resume';
 import { uploadResume, extractResume, confirmResumeDraft } from '../api/resume';
+import { getActiveCandidateProfile } from '../api/candidateProfile';
 
-import { CandidateProfileSelector } from '../components/resume/CandidateProfileSelector';
 import { ResumeUploadSection } from '../components/resume/ResumeUploadSection';
 import { ExtractionLoadingState } from '../components/resume/ExtractionLoadingState';
 import { DraftReviewBanner } from '../components/resume/DraftReviewBanner';
@@ -21,6 +21,13 @@ import { AIConsentModal, hasUserGivenAIConsent } from '../components/common/AICo
 export const ResumeReviewPage: React.FC = () => {
   const [currentProfile, setCurrentProfile] = useState<CandidateProfileResponse | null>(null);
   const [resumeId, setResumeId] = useState<string | null>(null);
+
+  // Silently auto-connect to the active candidate profile on mount
+  useEffect(() => {
+    getActiveCandidateProfile()
+      .then(setCurrentProfile)
+      .catch((err) => console.warn('Could not auto-load candidate profile:', err));
+  }, []);
   const [fileName, setFileName] = useState<string | null>(null);
 
   // Privacy & AI Consent modal state
@@ -174,15 +181,6 @@ export const ResumeReviewPage: React.FC = () => {
           Upload resume documents to extract and verify candidate facts.
         </p>
       </div>
-
-      {/* Candidate Profile Context Selector */}
-      <CandidateProfileSelector
-        currentProfile={currentProfile}
-        onProfileSelect={(prof) => {
-          setCurrentProfile(prof);
-          setConfirmedProfile(null);
-        }}
-      />
 
       {/* Confirmation Success View */}
       {confirmedProfile ? (

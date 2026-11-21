@@ -104,15 +104,16 @@ function matchesLocation(jobLoc: string | undefined | null, query: string): bool
 export const JobDiscoveryPage: React.FC = () => {
   // Candidate Profile
   const [profile, setProfile] = useState<CandidateProfileResponse | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState<boolean>(true);
 
   // Jobs state
   const [jobs, setJobs] = useState<Job[]>([]);
   const [isLoadingJobs, setIsLoadingJobs] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [jobError, setJobError] = useState<string | null>(null);
 
   // Ingestion state
   const [isIngesting, setIsIngesting] = useState<boolean>(false);
+  const [ingestionStep, setIngestionStep] = useState<string | null>(null);
   const [ingestionBanner, setIngestionBanner] = useState<string | null>(null);
 
   // Match cache state
@@ -144,8 +145,8 @@ export const JobDiscoveryPage: React.FC = () => {
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
 
   // LinkedIn-style filter dropdowns and All-Filters modal state
+  const [isAllFiltersOpen, setIsAllFiltersOpen] = useState<boolean>(false);
   const [openDropdown, setOpenDropdown] = useState<'source' | 'location' | 'workType' | 'experience' | 'employment' | null>(null);
-  const [isAllFiltersModalOpen, setIsAllFiltersModalOpen] = useState<boolean>(false);
 
   // Modals state
   const [selectedJobForModal, setSelectedJobForModal] = useState<Job | null>(null);
@@ -178,7 +179,6 @@ export const JobDiscoveryPage: React.FC = () => {
   }, []);
 
   const loadCandidateProfile = async () => {
-    setIsLoadingProfile(true);
     try {
       const p = await getActiveCandidateProfile();
       setProfile(p);
@@ -190,7 +190,6 @@ export const JobDiscoveryPage: React.FC = () => {
     } catch (err: any) {
       console.warn('Could not load active profile:', err.message);
     } finally {
-      setIsLoadingProfile(false);
     }
   };
 
@@ -204,6 +203,32 @@ export const JobDiscoveryPage: React.FC = () => {
       setJobError(err.message || 'Failed to fetch jobs.');
     } finally {
       setIsLoadingJobs(false);
+    }
+  };
+
+  const refreshJobs = async () => {
+    setIsRefreshing(true);
+    setJobError(null);
+    const startTime = Date.now();
+    try {
+      const data = await listJobs({ limit: 100 });
+      setJobs(data);
+      if (profile) {
+        await Promise.allSettled([
+          loadExistingMatches(profile.id),
+          loadUserApplications(profile.user_id),
+          loadUserFeedback(profile.id),
+        ]);
+      }
+    } catch (err: any) {
+      setJobError(err.message || 'Failed to refresh jobs.');
+    } finally {
+      // Ensure the progress bar and refresh animation remain visible for at least 700ms for smooth tactile UX
+      const elapsed = Date.now() - startTime;
+      const delay = Math.max(0, 700 - elapsed);
+      setTimeout(() => {
+        setIsRefreshing(false);
+      }, delay);
     }
   };
 
@@ -326,6 +351,7 @@ export const JobDiscoveryPage: React.FC = () => {
       const jobTypeParam = employmentType !== 'all' ? employmentType : undefined;
 
       // Ingest live LinkedIn jobs
+      setIngestionStep('Syncing live opportunities from LinkedIn...');
       try {
         const resLinkedIn = await ingestJobs({
           source: 'linkedin',
@@ -339,6 +365,7 @@ export const JobDiscoveryPage: React.FC = () => {
       } catch (err) {}
 
       // Ingest live Indeed jobs
+      setIngestionStep('Syncing live opportunities from Indeed...');
       try {
         const resIndeed = await ingestJobs({
           source: 'indeed',
@@ -351,6 +378,7 @@ export const JobDiscoveryPage: React.FC = () => {
         totalIngested += resIndeed.new_ingested;
       } catch (err) {}
 
+      setIngestionStep('Checking Greenhouse & Lever direct company boards...');
       try {
         const resGreenhouse = await ingestJobs({ source: 'greenhouse', limit: 15 });
         totalIngested += resGreenhouse.new_ingested;
@@ -361,6 +389,7 @@ export const JobDiscoveryPage: React.FC = () => {
         totalIngested += resLever.new_ingested;
       } catch (err) {}
 
+      setIngestionStep('Aggregating Adzuna & Remotive portals...');
       try {
         const resAdzuna = await ingestJobs({ source: 'adzuna', limit: 15 });
         totalIngested += resAdzuna.new_ingested;
@@ -377,12 +406,14 @@ export const JobDiscoveryPage: React.FC = () => {
         } catch (err) {}
       }
 
+      setIngestionStep('Finalizing fresh job listings...');
       await loadJobs();
       setIngestionBanner(`Successfully loaded latest job listings.`);
     } catch (err: any) {
       setIngestionBanner(`Failed to load jobs: ${err.message}`);
     } finally {
       setIsIngesting(false);
+      setIngestionStep(null);
     }
   };
 
@@ -484,6 +515,13 @@ export const JobDiscoveryPage: React.FC = () => {
   const activeJob = filteredJobs.find((j) => j.id === selectedJobId) || filteredJobs[0] || null;
   const activeMatch = activeJob ? matchesByJobId[activeJob.id] : null;
 
+  const activeDropdownFiltersCount =
+    (sourceFilter !== 'all' ? 1 : 0) +
+    (locationQuery.trim() !== '' ? 1 : 0) +
+    (workType !== 'all' ? 1 : 0) +
+    (employmentType !== 'all' ? 1 : 0) +
+    (experienceLevel !== 'all' ? 1 : 0);
+
   const hasActiveFilters =
     searchQuery.trim() !== '' ||
     locationQuery.trim() !== '' ||
@@ -493,14 +531,6 @@ export const JobDiscoveryPage: React.FC = () => {
     sourceFilter !== 'all' ||
     hideDiscarded;
 
-  const activeFilterCount =
-    (searchQuery.trim() !== '' ? 1 : 0) +
-    (locationQuery.trim() !== '' ? 1 : 0) +
-    (workType !== 'all' ? 1 : 0) +
-    (employmentType !== 'all' ? 1 : 0) +
-    (experienceLevel !== 'all' ? 1 : 0) +
-    (sourceFilter !== 'all' ? 1 : 0) +
-    (hideDiscarded ? 1 : 0);
 
   const clearAllFilters = () => {
     setSearchQuery('');
@@ -513,42 +543,18 @@ export const JobDiscoveryPage: React.FC = () => {
     setOpenDropdown(null);
   };
 
-  const TRENDING_KEYWORDS = ['AI/ML', 'Gen AI', 'LLM', 'Backend', 'Python', 'FastAPI', 'React', 'DevOps'];
-
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-6 py-6 space-y-4">
-      {/* LinkedIn Screenshot 3 Style: Candidate Preferences & Header Banner */}
-      <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          {/* Avatar with #OPENTOWORK ring badge */}
-          <div className="relative shrink-0">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-sky-500 p-0.5 ring-2 ring-emerald-500 shadow-sm flex items-center justify-center text-white font-bold text-lg">
-              {profile?.headline ? profile.headline.charAt(0).toUpperCase() : 'M'}
-            </div>
-            <span className="absolute -bottom-1 -right-1 bg-emerald-600 text-white text-[8px] font-bold px-1.5 py-0.2 rounded-full border border-white tracking-wider">
-              #OPEN
-            </span>
-          </div>
-
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                Jobs based on your preferences
-              </h1>
-              <span className="text-[10px] text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full font-semibold">
-                ✓ Verified
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 line-clamp-1 max-w-2xl font-normal">
-              {isLoadingProfile
-                ? 'Loading preferences from profile...'
-                : `${(profile?.target_titles || []).slice(0, 4).join(' or ') || 'Software Engineer or AI/ML Engineer'}, on-site, hybrid or remote in India`}
-            </p>
-          </div>
+      {/* Top Fixed Linear Progress Bar for Refresh / Ingestion */}
+      {(isLoadingJobs || isRefreshing || isIngesting) && (
+        <div className="fixed top-0 left-0 right-0 z-50 h-1 bg-blue-100 overflow-hidden shadow-sm">
+          <div className="h-full bg-gradient-to-r from-[#0a66c2] via-indigo-500 to-sky-400 animate-indeterminate" />
         </div>
+      )}
 
-        {/* Global Action CTAs */}
-        <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto justify-end">
+      {/* Action Bar */}
+      <div className="bg-white border border-slate-200/90 rounded-2xl p-3 sm:p-4 shadow-sm">
+        <div className="flex items-center gap-2 justify-end flex-wrap">
           <button
             onClick={() => setIsQuickAddModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition-all"
@@ -569,23 +575,54 @@ export const JobDiscoveryPage: React.FC = () => {
           </button>
           <button
             onClick={handleLoadJobs}
-            disabled={isIngesting || isLoadingJobs}
+            disabled={isIngesting || isLoadingJobs || isRefreshing}
             className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-[#0a66c2] hover:bg-[#004182] text-white shadow-sm transition-all disabled:opacity-50"
             title="Load live jobs from connected API sources (LinkedIn, Indeed, etc.)"
           >
             <Download className={`w-3.5 h-3.5 ${isIngesting ? 'animate-spin' : ''}`} />
-            {isIngesting ? 'Loading...' : 'Load Live Jobs'}
+            {isIngesting ? (ingestionStep ? 'Loading Live...' : 'Loading...') : 'Load Live Jobs'}
           </button>
           <button
-            onClick={loadJobs}
-            disabled={isLoadingJobs}
-            className="p-1.5 rounded-xl text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 shadow-sm transition-colors"
-            title="Refresh current jobs list"
+            onClick={refreshJobs}
+            disabled={isLoadingJobs || isRefreshing || isIngesting}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border shadow-sm transition-all ${
+              isRefreshing
+                ? 'bg-blue-50 text-[#0a66c2] border-blue-200 cursor-not-allowed'
+                : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border-slate-200'
+            }`}
+            title="Refresh current jobs list and qualification matches"
           >
-            <RotateCw className={`w-4 h-4 ${isLoadingJobs ? 'animate-spin' : ''}`} />
+            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing || isLoadingJobs ? 'animate-spin text-[#0a66c2]' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh Jobs'}</span>
           </button>
         </div>
       </div>
+
+      {/* Live Refresh / Ingestion Progress Card */}
+      {(isRefreshing || isIngesting) && (
+        <div className="bg-gradient-to-r from-blue-50 via-sky-50 to-indigo-50 border border-blue-200 rounded-2xl p-3.5 shadow-sm flex items-center justify-between gap-3 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-white border border-blue-200 flex items-center justify-center shadow-xs">
+              <RotateCw className="w-4 h-4 text-[#0a66c2] animate-spin" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800">
+                {isIngesting
+                  ? (ingestionStep || 'Fetching live opportunities from portals...')
+                  : 'Refreshing opportunities & match scores...'}
+              </p>
+              <p className="text-[11px] text-slate-500">
+                {isIngesting
+                  ? 'Syncing LinkedIn, Indeed, Greenhouse and Lever postings'
+                  : 'Re-evaluating qualification criteria and active filters'}
+              </p>
+            </div>
+          </div>
+          <div className="w-28 sm:w-44 h-2 bg-blue-200/80 rounded-full overflow-hidden shrink-0">
+            <div className="h-full bg-gradient-to-r from-[#0a66c2] to-indigo-600 animate-indeterminate rounded-full" />
+          </div>
+        </div>
+      )}
 
       {/* Background Worker Daemon & Pipeline Queue Monitor */}
       <WorkerQueueMonitor onCycleTriggered={loadJobs} />
@@ -657,10 +694,36 @@ export const JobDiscoveryPage: React.FC = () => {
               </button>
             )}
           </div>
+
+          {/* All Filters Button (Aside of Location) */}
+          <button
+            type="button"
+            onClick={() => setIsAllFiltersOpen(!isAllFiltersOpen)}
+            className={`w-full sm:w-auto px-4 py-2 rounded-full text-xs font-semibold flex items-center justify-center gap-2 border transition-all shrink-0 cursor-pointer shadow-sm ${
+              isAllFiltersOpen || activeDropdownFiltersCount > 0
+                ? 'bg-[#0a66c2] text-white border-[#0a66c2]'
+                : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300'
+            }`}
+            title="Toggle all filter dropdowns (Jobs, Location, Remote/Mode, Experience level, Employment type)"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>All filters</span>
+            {activeDropdownFiltersCount > 0 && (
+              <span className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                isAllFiltersOpen || activeDropdownFiltersCount > 0
+                  ? 'bg-white/20 text-white'
+                  : 'bg-slate-100 text-slate-700'
+              }`}>
+                {activeDropdownFiltersCount}
+              </span>
+            )}
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${isAllFiltersOpen ? 'rotate-180' : ''}`} />
+          </button>
         </div>
 
-        {/* Filter Pills Row (LinkedIn Screenshot 2 Style) */}
-        <div className="flex flex-wrap items-center gap-2 relative">
+        {/* Filter Pills Row (Displayed when All Filters is open) */}
+        {isAllFiltersOpen && (
+          <div className="flex flex-wrap items-center gap-2 relative pt-2 border-t border-slate-100 animate-fadeIn">
           {/* Pill 1: Source Filter Dropdown */}
           <div className="relative">
             <button
@@ -1002,55 +1065,15 @@ export const JobDiscoveryPage: React.FC = () => {
             )}
           </div>
 
-          {/* Inline Keyword Chips (LinkedIn Screenshot 2 style: AI/ML, Gen AI, LLM, Backend...) */}
-          {TRENDING_KEYWORDS.map((chip) => {
-            const isChipActive = searchQuery.toLowerCase() === chip.toLowerCase();
-            return (
+            {/* Reset Action Link */}
+            {hasActiveFilters && (
               <button
-                key={chip}
-                type="button"
-                onClick={() => setSearchQuery(isChipActive ? '' : chip)}
-                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold shrink-0 border transition-all flex items-center gap-1 cursor-pointer ${
-                  isChipActive
-                    ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                    : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
-                }`}
+                onClick={clearAllFilters}
+                className="text-xs font-semibold text-slate-500 hover:text-rose-600 hover:underline px-2 py-1 ml-auto cursor-pointer"
               >
-                <span>{chip}</span>
-                {isChipActive && <X className="w-3 h-3 ml-0.5" />}
+                Reset filters
               </button>
-            );
-          })}
-
-          {/* All Filters Button */}
-          <button
-            type="button"
-            onClick={() => setIsAllFiltersModalOpen(true)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold flex items-center gap-1.5 border transition-all shrink-0 cursor-pointer ${
-              activeFilterCount > 0
-                ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-300/90'
-            }`}
-          >
-            <SlidersHorizontal className="w-3.5 h-3.5" />
-            <span>All filters</span>
-            {activeFilterCount > 0 && (
-              <span className="bg-white/20 text-white rounded-full px-1.5 py-0.2 text-[10px] font-bold">
-                {activeFilterCount}
-              </span>
             )}
-          </button>
-        </div>
-
-        {/* Reset Action Link (LinkedIn Screenshot 2) */}
-        {hasActiveFilters && (
-          <div className="pt-0.5 flex items-center gap-2">
-            <button
-              onClick={clearAllFilters}
-              className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline"
-            >
-              Reset
-            </button>
           </div>
         )}
 
@@ -1060,15 +1083,7 @@ export const JobDiscoveryPage: React.FC = () => {
             <span>
               <strong className="text-slate-900 font-bold">{filteredJobs.length}</strong> results
             </span>
-            <span>•</span>
-            <button
-              onClick={() => setOpenDropdown('location')}
-              className="text-[#0a66c2] hover:underline font-semibold flex items-center gap-1"
-            >
-              <MapPin className="w-3 h-3 text-[#0a66c2]" />
-              <span>{locationQuery || 'All India'}</span>
-              <ChevronDown className="w-3 h-3" />
-            </button>
+
           </div>
 
           <div className="flex items-center gap-3">
@@ -1112,13 +1127,13 @@ export const JobDiscoveryPage: React.FC = () => {
       </div>
 
       {/* Main Jobs Section: Loading, Error, Empty, or Jobs View */}
-      {isLoadingJobs ? (
+      {isLoadingJobs && jobs.length === 0 ? (
         <div className="py-24 text-center space-y-3 bg-white border border-slate-200 rounded-2xl">
           <RotateCw className="w-8 h-8 text-[#0a66c2] animate-spin mx-auto" />
           <p className="text-sm font-semibold text-slate-700">Loading live opportunities...</p>
           <p className="text-xs text-slate-400">Fetching listings from LinkedIn, Indeed, Greenhouse & Lever</p>
         </div>
-      ) : jobError ? (
+      ) : jobError && jobs.length === 0 ? (
         <div className="p-4 bg-red-50 border border-red-200 rounded-2xl text-xs text-red-600">
           {jobError}
         </div>
@@ -1140,7 +1155,7 @@ export const JobDiscoveryPage: React.FC = () => {
         /* ========================================================================= */
         /* LINKEDIN SCREENSHOT 2: SPLIT VIEW (MASTER-DETAIL 2-COLUMN LAYOUT)         */
         /* ========================================================================= */
-        <div className="flex flex-col lg:flex-row gap-4 items-start">
+        <div className={`flex flex-col lg:flex-row gap-4 items-start transition-opacity duration-300 ${isRefreshing ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
           {/* Left Column: Job List (42% Width) */}
           <div className="w-full lg:w-[42%] space-y-2.5">
             <div className="flex items-center justify-between px-1 text-xs text-slate-500 font-medium">
@@ -1519,7 +1534,7 @@ export const JobDiscoveryPage: React.FC = () => {
         /* ========================================================================= */
         /* GRID VIEW (ALTERNATIVE 2-COLUMN CARDS)                                    */
         /* ========================================================================= */
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+        <div className={`grid grid-cols-1 md:grid-cols-2 gap-3.5 transition-opacity duration-300 ${isRefreshing ? 'opacity-60 pointer-events-none' : 'opacity-100'}`}>
           {filteredJobs.map((job) => {
             const match = matchesByJobId[job.id];
             const isTracked = !!trackedJobIds[job.id];
@@ -1674,199 +1689,6 @@ export const JobDiscoveryPage: React.FC = () => {
         />
       )}
 
-      {/* LinkedIn Style: All Filters Modal Dialog */}
-      {isAllFiltersModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-3xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col overflow-hidden border border-slate-200">
-            {/* Modal Header */}
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <SlidersHorizontal className="w-5 h-5 text-slate-700" />
-                <h3 className="text-base font-bold text-slate-900">All Filters</h3>
-              </div>
-              <button
-                onClick={() => setIsAllFiltersModalOpen(false)}
-                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Modal Body: Filter Categories */}
-            <div className="p-5 overflow-y-auto space-y-6 flex-1 text-xs">
-              {/* Category 1: Job Source */}
-              <div className="space-y-2.5">
-                <h4 className="font-bold text-slate-900 text-sm">Job Source</h4>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'all', label: 'All Sources' },
-                    { id: 'linkedin', label: 'LinkedIn' },
-                    { id: 'indeed', label: 'Indeed' },
-                    { id: 'greenhouse', label: 'Greenhouse' },
-                    { id: 'lever', label: 'Lever' },
-                    { id: 'adzuna', label: 'Adzuna' },
-                    { id: 'remotive', label: 'Remotive' },
-                    { id: 'manual', label: 'Direct / ATS' },
-                  ].map((src) => (
-                    <button
-                      key={src.id}
-                      onClick={() => setSourceFilter(src.id)}
-                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
-                        sourceFilter === src.id
-                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {src.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Category 2: Workplace Mode */}
-              <div className="space-y-2.5 border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-slate-900 text-sm">Workplace Mode</h4>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'all', label: 'All Modes' },
-                    { id: 'remote', label: '🏠 Remote' },
-                    { id: 'hybrid', label: '🏢 Hybrid' },
-                    { id: 'onsite', label: '🏢 On-site' },
-                  ].map((mode) => (
-                    <button
-                      key={mode.id}
-                      onClick={() => setWorkType(mode.id as any)}
-                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
-                        workType === mode.id
-                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {mode.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Category 3: Experience Level */}
-              <div className="space-y-2.5 border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-slate-900 text-sm">Experience Level</h4>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'all', label: 'All Experience' },
-                    { id: 'entry', label: 'Entry Level (0-2 yrs)' },
-                    { id: 'mid', label: 'Mid-Senior (2-5 yrs)' },
-                    { id: 'senior', label: 'Senior / Lead (5+ yrs)' },
-                  ].map((lvl) => (
-                    <button
-                      key={lvl.id}
-                      onClick={() => setExperienceLevel(lvl.id as any)}
-                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
-                        experienceLevel === lvl.id
-                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {lvl.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Category 4: Employment Type */}
-              <div className="space-y-2.5 border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-slate-900 text-sm">Employment Type</h4>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: 'all', label: 'All Types' },
-                    { id: 'full-time', label: 'Full-time' },
-                    { id: 'contract', label: 'Contract' },
-                    { id: 'part-time', label: 'Part-time' },
-                  ].map((emp) => (
-                    <button
-                      key={emp.id}
-                      onClick={() => setEmploymentType(emp.id as any)}
-                      className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
-                        employmentType === emp.id
-                          ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                          : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                      }`}
-                    >
-                      {emp.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Category 5: Popular Regions */}
-              <div className="space-y-2.5 border-t border-slate-100 pt-4">
-                <h4 className="font-bold text-slate-900 text-sm">Location / Region</h4>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    { id: '', label: '🇮🇳 All India' },
-                    { id: 'Bengaluru', label: 'Bengaluru' },
-                    { id: 'Mumbai', label: 'Mumbai' },
-                    { id: 'Hyderabad', label: 'Hyderabad' },
-                    { id: 'Pune', label: 'Pune' },
-                    { id: 'Delhi', label: 'Delhi/NCR' },
-                    { id: 'Chennai', label: 'Chennai' },
-                    { id: 'Noida', label: 'Noida/Gurgaon' },
-                  ].map((loc) => {
-                    const isSelected =
-                      loc.id === ''
-                        ? locationQuery === ''
-                        : locationQuery.toLowerCase() === loc.id.toLowerCase();
-                    return (
-                      <button
-                        key={loc.id}
-                        onClick={() => setLocationQuery(loc.id)}
-                        className={`px-3 py-1.5 rounded-full font-semibold border transition-all ${
-                          isSelected
-                            ? 'bg-[#057642] text-white border-[#057642] shadow-sm'
-                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        {loc.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Category 6: Discarded Jobs Toggle */}
-              <div className="border-t border-slate-100 pt-4">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={hideDiscarded}
-                    onChange={(e) => setHideDiscarded(e.target.checked)}
-                    className="rounded border-slate-300 text-[#057642] focus:ring-[#057642]"
-                  />
-                  <span className="font-semibold text-slate-800">
-                    Hide discarded jobs ({Object.keys(discardsByJobId).length})
-                  </span>
-                </label>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 sm:p-5 border-t border-slate-100 flex items-center justify-between bg-slate-50">
-              <button
-                onClick={clearAllFilters}
-                className="text-xs font-semibold text-slate-600 hover:text-slate-900 hover:underline"
-              >
-                Reset All Filters
-              </button>
-              <button
-                onClick={() => setIsAllFiltersModalOpen(false)}
-                className="px-5 py-2 rounded-full text-xs font-bold bg-[#057642] hover:bg-[#046237] text-white shadow-sm transition-all"
-              >
-                Show {filteredJobs.length} Results
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

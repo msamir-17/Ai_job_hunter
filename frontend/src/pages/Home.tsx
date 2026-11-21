@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, Navigate } from 'react-router-dom';
 import {
   ArrowRight,
   FileUp,
@@ -7,7 +7,6 @@ import {
   Download,
   Lock,
   ExternalLink,
-  User,
   Terminal,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -54,6 +53,9 @@ export const Home: React.FC = () => {
 
   const isDev = import.meta.env.DEV;
 
+  // Authenticated users go straight to jobs — landing page is for guests only
+  if (user) return <Navigate to="/jobs" replace />;
+
   return (
     <div className="min-h-screen flex flex-col justify-between">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 lg:py-16 space-y-20">
@@ -84,41 +86,13 @@ export const Home: React.FC = () => {
               <ArrowRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
-            {!user ? (
-              <button
-                onClick={() => setIsAuthModalOpen(true)}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium text-sm transition-colors"
-              >
-                <span>Sign In</span>
-              </button>
-            ) : (
-              <Link
-                to="/profile"
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium text-sm transition-colors"
-              >
-                <User className="w-4 h-4 text-slate-500" />
-                <span>My Profile</span>
-              </Link>
-            )}
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 rounded-lg bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 font-medium text-sm transition-colors"
+            >
+              <span>Sign In</span>
+            </button>
           </div>
-
-          {/* If user is logged in: Quick Status Strip */}
-          {user && (
-            <div className="pt-4">
-              <div className="inline-flex items-center gap-3 px-4 py-2 bg-emerald-50/80 border border-emerald-200 rounded-lg text-xs text-emerald-800">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                <span>
-                  Signed in as <strong>{user.full_name || user.email}</strong>. Ready to discover and tailor jobs.
-                </span>
-                <Link
-                  to="/applications"
-                  className="font-semibold text-emerald-900 hover:underline flex items-center gap-0.5"
-                >
-                  View Kanban <ArrowRight className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
-          )}
         </section>
 
         {/* 2. HOW IT WORKS (3 steps with icons) */}

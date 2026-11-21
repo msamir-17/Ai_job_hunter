@@ -101,11 +101,11 @@ export const WorkerQueueMonitor: React.FC<WorkerQueueMonitorProps> = ({ onCycleT
             type="button"
             onClick={fetchStatus}
             disabled={isLoading}
-            className="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
-            title="Refresh queue depths"
+            className="flex items-center space-x-1.5 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition disabled:opacity-50"
+            title="Sync background worker queue depths and telemetry"
           >
-            <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Refresh</span>
+            <RefreshCw className={`h-3 w-3 ${isLoading ? 'animate-spin text-blue-600' : ''}`} />
+            <span className="text-[11px] text-slate-600">Sync Queue</span>
           </button>
 
           <button
