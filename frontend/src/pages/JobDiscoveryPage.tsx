@@ -500,7 +500,7 @@ export const JobDiscoveryPage: React.FC = () => {
       {/* ========================================================================= */}
       {/* LINKEDIN SCREENSHOT 2: UNIFIED SEARCH & PILL FILTERS BAR                 */}
       {/* ========================================================================= */}
-      <div className="bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 shadow-2xs space-y-1.5 relative">
+      <div className="bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 shadow-2xs space-y-1.5 relative z-30">
         {/* Top: LinkedIn Search Input with Location */}
         <div className="flex flex-col sm:flex-row items-center gap-2">
           {/* Keyword Search Input */}
@@ -573,9 +573,9 @@ export const JobDiscoveryPage: React.FC = () => {
 
         {/* Filter Pills Row (Displayed when All Filters is open) */}
         {isAllFiltersOpen && (
-          <div className="flex flex-wrap items-center gap-2 relative pt-2 border-t border-slate-100 animate-fadeIn">
+          <div className="flex flex-wrap items-center gap-2 relative z-30 pt-2 border-t border-slate-100 animate-fadeIn">
           {/* Pill 1: Source Filter Dropdown */}
-          <div className="relative">
+          <div className={`relative ${openDropdown === 'source' ? 'z-50' : ''}`}>
             <button
               type="button"
               onClick={(e) => {
@@ -653,7 +653,7 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
 
           {/* Pill 2: Location Quick Filter Dropdown */}
-          <div className="relative">
+          <div className={`relative ${openDropdown === 'location' ? 'z-50' : ''}`}>
             <button
               type="button"
               onClick={(e) => {
@@ -721,7 +721,7 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
 
           {/* Pill 3: Remote / Workplace Mode Dropdown */}
-          <div className="relative">
+          <div className={`relative ${openDropdown === 'workType' ? 'z-50' : ''}`}>
             <button
               type="button"
               onClick={(e) => {
@@ -786,7 +786,7 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
 
           {/* Pill 4: Experience Level Dropdown */}
-          <div className="relative">
+          <div className={`relative ${openDropdown === 'experience' ? 'z-50' : ''}`}>
             <button
               type="button"
               onClick={(e) => {
@@ -851,7 +851,7 @@ export const JobDiscoveryPage: React.FC = () => {
           </div>
 
           {/* Pill 5: Employment Type Dropdown */}
-          <div className="relative">
+          <div className={`relative ${openDropdown === 'employment' ? 'z-50' : ''}`}>
             <button
               type="button"
               onClick={(e) => {
