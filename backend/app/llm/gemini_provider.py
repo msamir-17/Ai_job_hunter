@@ -1,3 +1,4 @@
+import os
 import time
 from typing import Type, TypeVar
 from google import genai
@@ -18,8 +19,25 @@ class GeminiLLMProvider(BaseLLMProvider):
     """
 
     def __init__(self, api_key: str | None = None, model: str = "gemini-2.5-flash"):
-        self.api_key = api_key or settings.GEMINI_API_KEY
+        self.api_key = api_key
         self.model = model
+
+    def _get_api_key(self) -> str:
+        key = self.api_key or settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+        if not key or key.strip() in ("", "your_gemini_api_key_here"):
+            from pathlib import Path
+            from dotenv import dotenv_values
+            for env_path in [
+                Path(__file__).resolve().parent.parent.parent / ".env",
+                Path(__file__).resolve().parent.parent.parent.parent / ".env",
+            ]:
+                if env_path.exists():
+                    vals = dotenv_values(env_path)
+                    candidate = vals.get("GEMINI_API_KEY", "")
+                    if candidate and candidate.strip() not in ("", "your_gemini_api_key_here"):
+                        key = candidate
+                        break
+        return key.strip() if key else ""
 
     async def generate_structured(
         self,
@@ -27,7 +45,8 @@ class GeminiLLMProvider(BaseLLMProvider):
         user_prompt: str,
         response_schema: Type[T],
     ) -> T:
-        if not self.api_key or self.api_key.strip() in ("", "your_gemini_api_key_here"):
+        api_key = self._get_api_key()
+        if not api_key or api_key in ("", "your_gemini_api_key_here"):
             raise ValueError(
                 "Gemini API key is not configured. Please add a valid GEMINI_API_KEY to your .env file."
             )
@@ -35,7 +54,7 @@ class GeminiLLMProvider(BaseLLMProvider):
         start_time = time.time()
 
         try:
-            client = genai.Client(api_key=self.api_key)
+            client = genai.Client(api_key=api_key)
             config = types.GenerateContentConfig(
                 system_instruction=system_prompt,
                 response_mime_type="application/json",

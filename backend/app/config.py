@@ -1,5 +1,15 @@
 import os
+from pathlib import Path
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Preload .env with override=True so disk .env overrides any empty shell environment variables
+_backend_env = Path(__file__).resolve().parent.parent / ".env"
+_root_env = Path(__file__).resolve().parent.parent.parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env, override=True)
+if _root_env.exists():
+    load_dotenv(_root_env, override=True)
 
 class Settings(BaseSettings):
     """Application Settings loaded from environment variables or .env file."""

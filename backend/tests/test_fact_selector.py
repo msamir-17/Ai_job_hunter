@@ -120,3 +120,80 @@ def test_enhanced_fact_verifier_blocks_metric_semantic_inflation(truth_vault: Ca
     )
     assert is_valid is False
     assert any("Semantic inflation" in v for v in violations)
+
+
+def test_different_resumes_generated_for_different_jobs(truth_vault: CandidateTruthVault):
+    """Verify that different jobs receive uniquely tailored headlines, summaries, and prioritized skills."""
+    resume_morningstar = FactSelectorEngine.assemble_tailored_resume(
+        vault=truth_vault,
+        job_title="Software Engineer (Python)",
+        job_company="Morningstar",
+        job_description="Seeking a Python Backend Engineer to build robust data pipelines and APIs with PostgreSQL.",
+        skills_required=["Python", "FastAPI", "PostgreSQL"],
+    )
+
+    resume_anthropic = FactSelectorEngine.assemble_tailored_resume(
+        vault=truth_vault,
+        job_title="Senior AI Systems Engineer",
+        job_company="Anthropic",
+        job_description="Looking for an engineer to advance LLM evaluation, RAG pipelines, and agent systems.",
+        skills_required=["LangChain", "PyTorch", "Ragas Evaluation"],
+    )
+
+    # 1. Headlines must be distinctly tailored
+    assert "Morningstar" in resume_morningstar.headline
+    assert "Software Engineer (Python)" in resume_morningstar.headline
+    assert "Anthropic" in resume_anthropic.headline
+    assert "Senior AI Systems Engineer" in resume_anthropic.headline
+    assert resume_morningstar.headline != resume_anthropic.headline
+
+    # 2. Summaries must explicitly reference their respective companies and roles
+    assert "Morningstar" in resume_morningstar.summary
+    assert "Anthropic" in resume_anthropic.summary
+    assert resume_morningstar.summary != resume_anthropic.summary
+
+    # 3. Target job metadata must match
+    assert resume_morningstar.target_company == "Morningstar"
+    assert resume_anthropic.target_company == "Anthropic"
+
+
+def test_load_truth_vault_from_real_candidate_profile():
+    """Verify that _load_truth_vault extracts real candidate experiences, skills, and education from DB."""
+    from app.api.tailoring import _load_truth_vault
+    from app.models import User
+
+    mock_user = User(full_name="Jane Doe", email="jane@example.com")
+    candidate = CandidateProfile(
+        headline="Senior AI Systems Architect",
+        skills=["Python", "Databricks", "FastAPI", "LangChain"],
+        experience=[
+            {
+                "company": "Enterprise Global",
+                "title": "Lead AI Engineer",
+                "start_date": "2023",
+                "end_date": "Present",
+                "technologies": ["Python", "Databricks"],
+                "responsibilities": [
+                    "Engineered enterprise data processing pipeline reducing latency by 40%.",
+                ],
+            }
+        ],
+        education=[
+            {
+                "institution": "National Institute of Tech",
+                "degree": "B.Tech",
+                "field_of_study": "Computer Science",
+                "end_date": "2022",
+            }
+        ],
+    )
+    candidate.user = mock_user
+
+    vault = _load_truth_vault(candidate)
+
+    assert vault.candidate_name == "Jane Doe"
+    assert vault.email == "jane@example.com"
+    assert vault.headline == "Senior AI Systems Architect"
+    assert any(f.entity_name == "Enterprise Global" for f in vault.facts)
+    assert any("National Institute" in e.entity_name for e in vault.education)
+    assert "Python" in vault.skills_inventory.get("Backend & Systems", []) or "Python" in vault.skills_inventory.get("Core Technical Skills", [])

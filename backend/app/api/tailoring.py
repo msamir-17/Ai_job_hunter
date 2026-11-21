@@ -15,7 +15,7 @@ from app.llm import BaseLLMProvider, get_llm_provider
 from app.models import CandidateProfile, Job, JobMatch, User
 from app.schemas.archetype import ArchetypeConfig
 from app.schemas.ats_resume import ATSTailoredResume
-from app.schemas.candidate_facts import CandidateTruthVault
+from app.schemas.candidate_facts import CandidateFact, CandidateTruthVault, FactCategory
 from app.schemas.tailoring import (
     AntiHallucinationAuditResult,
     ATSTailoringRequest,
@@ -61,23 +61,144 @@ async def _verify_candidate_ownership(
     return candidate
 
 
+def _categorize_skill(skill_name: str) -> str:
+    s = skill_name.lower()
+    if any(k in s for k in ["genai", "llm", "rag", "langchain", "langgraph", "prompt", "transformers", "agent"]):
+        return "GenAI & LLMs"
+    if any(k in s for k in ["machine learning", "ml", "pytorch", "tensorflow", "scikit", "model", "nlp", "vision", "deep learning"]):
+        return "AI & Machine Learning"
+    if any(k in s for k in ["fastapi", "django", "flask", "rest", "api", "asyncio", "microservice", "backend", "system"]):
+        return "Backend & Systems"
+    if any(k in s for k in ["sql", "postgres", "mysql", "redis", "mongodb", "database", "pgvector", "vector", "search", "bm25", "elasticsearch"]):
+        return "Databases & Search"
+    if any(k in s for k in ["docker", "kubernetes", "aws", "azure", "gcp", "cloud", "devops", "ci/cd", "git", "linux", "mlops", "databricks"]):
+        return "DevOps & Cloud Practices"
+    return "Core Technical Skills"
+
+
 def _load_truth_vault(candidate: CandidateProfile | None = None) -> CandidateTruthVault:
     """Helper to load candidate verified facts, merging profile attributes."""
+    vault: CandidateTruthVault | None = None
     if FACTS_DATA_PATH.exists():
-        with open(FACTS_DATA_PATH, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        vault = CandidateTruthVault.model_validate(data)
-    else:
+        try:
+            with open(FACTS_DATA_PATH, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            vault = CandidateTruthVault.model_validate(data)
+        except Exception:
+            vault = None
+
+    if not vault:
         vault = CandidateTruthVault(
-            candidate_name="MOHAMMAD SAMIR KHAN",
-            headline="AI/GenAI Engineer & Backend Systems Developer",
-            email="samirkhan003786@gmail.com",
-            location="Mumbai, India",
+            candidate_name="Candidate",
+            headline="AI/ML Engineer & Systems Developer",
+            email="candidate@example.com",
+            location="India",
         )
 
-    # If candidate profile has headline, prefer it
-    if candidate and candidate.headline:
-        vault.headline = candidate.headline
+    if candidate:
+        if candidate.user:
+            if candidate.user.full_name:
+                vault.candidate_name = candidate.user.full_name
+            if candidate.user.email:
+                vault.email = candidate.user.email
+
+        if candidate.headline:
+            vault.headline = candidate.headline
+
+        # Populate skills_inventory from verified profile skills
+        if candidate.skills and len(candidate.skills) > 0:
+            skills_inv: dict[str, list[str]] = {}
+            for item in candidate.skills:
+                skill_name = item if isinstance(item, str) else item.get("name", "")
+                if not skill_name or not skill_name.strip():
+                    continue
+                skill_name = skill_name.strip()
+                cat = _categorize_skill(skill_name)
+                if cat not in skills_inv:
+                    skills_inv[cat] = []
+                if skill_name not in skills_inv[cat]:
+                    skills_inv[cat].append(skill_name)
+            if skills_inv:
+                vault.skills_inventory = skills_inv
+
+        # Populate education from verified profile education
+        if candidate.education and len(candidate.education) > 0:
+            edu_facts: list[CandidateFact] = []
+            for idx, edu in enumerate(candidate.education):
+                inst = edu.get("institution", "") if isinstance(edu, dict) else getattr(edu, "institution", "")
+                deg = edu.get("degree", "") if isinstance(edu, dict) else getattr(edu, "degree", "")
+                field = edu.get("field_of_study", "") if isinstance(edu, dict) else getattr(edu, "field_of_study", "")
+                start = edu.get("start_date", "") if isinstance(edu, dict) else getattr(edu, "start_date", "")
+                end = edu.get("end_date", "") if isinstance(edu, dict) else getattr(edu, "end_date", "")
+
+                title_part = f"{deg}, {field}".strip(", ") if field else (deg or "Degree")
+                dates_part = f"Graduated: {end}" if end else (start or "")
+                phrasing = f"{title_part} — {inst} — {dates_part}".strip(" —")
+
+                edu_facts.append(
+                    CandidateFact(
+                        fact_id=f"edu_db_{idx}",
+                        category=FactCategory.EDUCATION,
+                        entity_name=inst or "Institution",
+                        role_or_title=title_part,
+                        start_date=start,
+                        end_date=end,
+                        tags=["education", deg.lower() if deg else "", field.lower() if field else ""],
+                        phrasings={"default": phrasing, "genai": phrasing, "swe": phrasing, "ai_eng": phrasing, "data": phrasing},
+                        is_flagship=False,
+                    )
+                )
+            if edu_facts:
+                vault.education = edu_facts
+
+        # Populate facts from verified profile experience
+        if candidate.experience and len(candidate.experience) > 0:
+            exp_facts: list[CandidateFact] = []
+            for e_idx, exp in enumerate(candidate.experience):
+                company = exp.get("company", "") if isinstance(exp, dict) else getattr(exp, "company", "")
+                title = exp.get("title", "") if isinstance(exp, dict) else getattr(exp, "title", "")
+                start = exp.get("start_date", "") if isinstance(exp, dict) else getattr(exp, "start_date", "")
+                end = exp.get("end_date", "") if isinstance(exp, dict) else getattr(exp, "end_date", "")
+                techs = exp.get("technologies", []) if isinstance(exp, dict) else getattr(exp, "technologies", [])
+                if isinstance(techs, str):
+                    techs = [t.strip() for t in techs.split(",") if t.strip()]
+
+                achievements = (
+                    exp.get("responsibilities") or exp.get("achievements") or []
+                    if isinstance(exp, dict)
+                    else (getattr(exp, "responsibilities", None) or getattr(exp, "achievements", None) or [])
+                )
+                if isinstance(achievements, str):
+                    achievements = [a.strip() for a in achievements.splitlines() if a.strip()]
+
+                tags = [t.lower() for t in (techs or [])] + [title.lower(), company.lower()]
+
+                for a_idx, ach in enumerate(achievements):
+                    if not ach or not str(ach).strip():
+                        continue
+                    ach_text = str(ach).strip()
+                    exp_facts.append(
+                        CandidateFact(
+                            fact_id=f"exp_{e_idx}_{a_idx}",
+                            category=FactCategory.EXPERIENCE,
+                            entity_name=company or "Organization",
+                            role_or_title=title or "Engineer",
+                            start_date=start,
+                            end_date=end,
+                            tags=tags,
+                            phrasings={
+                                "default": ach_text,
+                                "genai": ach_text,
+                                "swe": ach_text,
+                                "ai_eng": ach_text,
+                                "data": ach_text,
+                            },
+                            is_flagship=(e_idx == 0),
+                        )
+                    )
+            if exp_facts:
+                vault.facts = exp_facts
+
     return vault
 
 

@@ -214,7 +214,7 @@ async def seed_my_profile_from_facts(
                 "description": bullets[0] if bullets else "",
                 "bullets": bullets[:3],
             })
-    profile.experience = projects_exp
+    profile.experience = projects_exp[:2]
 
     edu_list = []
     for edu in data.get("education", []):
@@ -225,7 +225,7 @@ async def seed_my_profile_from_facts(
             "start_date": edu.get("start_date", "2020"),
             "end_date": edu.get("end_date", "Graduated"),
         })
-    profile.education = edu_list
+    profile.education = edu_list[:2]
 
     await db.commit()
     await db.refresh(profile)

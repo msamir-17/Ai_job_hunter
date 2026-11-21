@@ -4,11 +4,12 @@ Selects candidate facts, projects, and angle-specific approved phrasings based o
 the job description and active archetype lens, strictly budgeting content for 1-page ATS compliance.
 """
 import math
+import re
 from typing import Dict, List, Optional
 from app.core.archetypes import classify_job_archetype, get_archetype
 from app.schemas.archetype import ArchetypeConfig
 from app.schemas.ats_resume import ATSTailoredResume, OnePageBudgetAudit, TailoredProjectItem
-from app.schemas.candidate_facts import CandidateFact, CandidateTruthVault
+from app.schemas.candidate_facts import CandidateFact, CandidateTruthVault, FactCategory
 
 
 class FactSelectorEngine:
@@ -90,9 +91,10 @@ class FactSelectorEngine:
         """
         Assemble a complete ATS-ready tailored resume:
         1. Select archetype lens (user-specified or auto-classified from JD).
-        2. Order skill categories according to archetype priorities.
-        3. Select top projects (guaranteeing flagship project first) and pick approved phrasings.
-        4. Audit one-page budget and auto-trim if necessary.
+        2. Formulate dynamic job-tailored headline and summary aligned with target role and company.
+        3. Order skill categories and prioritize matching skills to the front.
+        4. Select top projects and experiences (guaranteeing flagship project first) and pick approved phrasings.
+        5. Audit one-page budget and auto-trim if necessary.
         """
         # 1. Determine Archetype
         if forced_archetype_id:
@@ -101,26 +103,90 @@ class FactSelectorEngine:
             classification = classify_job_archetype(job_title, job_description, skills_required)
             archetype = get_archetype(classification.recommended_archetype_id)
 
-        # 2. Formulate Headline and Summary
-        headline = archetype.headline_template
-        summary = archetype.summary_template
+        clean_title = (job_title or "").strip()
+        clean_company = (job_company or "").strip()
 
-        # 3. Order Skills Categories
+        # 2. Formulate Dynamic Headline
+        if clean_title and clean_company:
+            headline = f"{clean_title} | Candidate targeting {clean_company}"
+        elif clean_title:
+            headline = f"{clean_title} | {archetype.display_name}"
+        else:
+            headline = archetype.headline_template
+
+        # Extract tokens from JD to prioritize relevant skills and bullet points
+        jd_tokens = set(re.findall(r"[a-z0-9\+#\.]+", f"{job_title} {job_company} {job_description}".lower()))
+        if skills_required:
+            for req in skills_required:
+                for token in re.findall(r"[a-z0-9\+#\.]+", req.lower()):
+                    jd_tokens.add(token)
+
+        # Match candidate skills with JD requirements
+        all_candidate_skills: List[str] = []
+        for cat_skills in vault.skills_inventory.values():
+            for s in cat_skills:
+                if s not in all_candidate_skills:
+                    all_candidate_skills.append(s)
+
+        matched_skills: List[str] = []
+        if skills_required:
+            for req in skills_required:
+                for c_skill in all_candidate_skills:
+                    if (req.lower() in c_skill.lower() or c_skill.lower() in req.lower()) and c_skill not in matched_skills:
+                        matched_skills.append(c_skill)
+
+        for c_skill in all_candidate_skills:
+            if c_skill.lower() in jd_tokens and c_skill not in matched_skills:
+                matched_skills.append(c_skill)
+
+        key_skills_str = (
+            ", ".join(matched_skills[:4])
+            if matched_skills
+            else ", ".join(all_candidate_skills[:4])
+            or "scalable systems, clean code, and production software"
+        )
+
+        # Formulate Dynamic Summary
+        if clean_title and clean_company:
+            summary = (
+                f"Results-driven {clean_title} candidate targeting {clean_company}. "
+                f"Brings verified hands-on engineering depth in {key_skills_str}, backed by production experience "
+                f"delivering scalable systems, reliable data pipelines, and robust software architectures. "
+                f"Committed to rigorous engineering quality and immediate impact at {clean_company}."
+            )
+        elif clean_title:
+            summary = (
+                f"Results-driven {clean_title} with verified technical background in {key_skills_str}. "
+                f"Demonstrated track record of delivering resilient, production-ready software solutions "
+                f"and low-latency system architectures with strong adherence to engineering best practices."
+            )
+        else:
+            summary = archetype.summary_template
+
+        # 3. Order Skills Categories and prioritize matching skills to the front
         ordered_skills: Dict[str, List[str]] = {}
         for cat in archetype.skill_category_order:
             if cat in vault.skills_inventory:
-                ordered_skills[cat] = vault.skills_inventory[cat]
+                ordered_skills[cat] = list(vault.skills_inventory[cat])
         # Include any remaining categories not explicitly in priority list
         for cat, skills in vault.skills_inventory.items():
             if cat not in ordered_skills:
-                ordered_skills[cat] = skills
+                ordered_skills[cat] = list(skills)
 
-        # 4. Group Facts by Project and Select Phrasings
+        # Prioritize matching skills within each category
+        for cat in ordered_skills:
+            ordered_skills[cat].sort(
+                key=lambda s: 1 if (s in matched_skills or s.lower() in jd_tokens) else 0,
+                reverse=True,
+            )
+
+        # 4. Group Facts by Project/Experience and Select Phrasings
         facts_by_project: Dict[str, List[CandidateFact]] = {}
         project_meta: Dict[str, Dict] = {}
 
         for f in vault.facts:
-            if f.category.value == "project":
+            cat_val = f.category.value if hasattr(f.category, "value") else str(f.category)
+            if cat_val in ("project", "experience"):
                 p_name = f.entity_name
                 if p_name not in facts_by_project:
                     facts_by_project[p_name] = []
@@ -131,16 +197,29 @@ class FactSelectorEngine:
                     }
                 facts_by_project[p_name].append(f)
 
-        # Sort projects: Flagship first, then by matching archetype tags
+        def score_fact(fact: CandidateFact) -> int:
+            score = 0
+            # Token matches with target JD
+            fact_tokens = set(
+                re.findall(
+                    r"[a-z0-9\+#\.]+",
+                    f"{' '.join(fact.tags)} {fact.entity_name} {' '.join(fact.phrasings.values())}".lower(),
+                )
+            )
+            common = fact_tokens.intersection(jd_tokens)
+            score += len(common) * 3
+
+            # Angle match
+            if archetype.primary_angle in fact.tags or archetype.primary_angle in fact.phrasings:
+                score += 2
+            return score
+
+        # Sort projects: Flagship first, then by matching archetype and JD relevance
         sorted_project_names = sorted(
             facts_by_project.keys(),
             key=lambda name: (
                 1 if project_meta[name]["is_flagship"] else 0,
-                sum(
-                    1
-                    for fact in facts_by_project[name]
-                    if archetype.primary_angle in fact.tags or any(t in fact.tags for t in ["genai", "swe", "backend"])
-                ),
+                sum(score_fact(fact) for fact in facts_by_project[name]),
             ),
             reverse=True,
         )
@@ -156,14 +235,11 @@ class FactSelectorEngine:
                 archetype.max_bullets_per_flagship if is_flagship else archetype.max_bullets_per_standard
             )
 
-            # Sort facts for this project: prefer facts that have this archetype angle
+            # Sort facts for this project: highest relevance score first!
             p_facts = facts_by_project[name]
             sorted_facts = sorted(
                 p_facts,
-                key=lambda fact: (
-                    1 if archetype.primary_angle in fact.phrasings else 0,
-                    1 if archetype.primary_angle in fact.tags else 0,
-                ),
+                key=lambda fact: score_fact(fact),
                 reverse=True,
             )
 

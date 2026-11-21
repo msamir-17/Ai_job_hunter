@@ -94,9 +94,9 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [saveSuccessMessage, setSaveSuccessMessage] = useState<string | null>(null);
 
-  // Load archetypes and auto-generate ATS Resume when opened
+  // Load archetypes and auto-generate ATS Resume when opened or when target job changes
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && job?.id && candidateProfileId) {
       loadArchetypes();
       if (initialCustomData) {
         setAtsResume(initialCustomData.tailored_resume);
@@ -105,20 +105,27 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
         if (initialCustomData.cover_letter) {
           setCoverLetterText(initialCustomData.cover_letter);
         }
-      } else if (!atsResume && !isGeneratingATS) {
+      } else {
         handleGenerateATS(null);
       }
+    } else if (!isOpen) {
+      setAtsResume(null);
+      setTailoringData(null);
+      setResumeText('');
+      setCoverLetterText('');
+      setAuditResult(null);
+      setSelectedArchetype(null);
     }
-  }, [isOpen, initialCustomData]);
+  }, [isOpen, job?.id, candidateProfileId, initialCustomData]);
 
   // Lazy-load legacy LLM drafts only when switching to Resume Bullets or Cover Letter
   useEffect(() => {
-    if (isOpen && (activeTab === 'resume' || activeTab === 'cover_letter')) {
+    if (isOpen && job?.id && candidateProfileId && (activeTab === 'resume' || activeTab === 'cover_letter')) {
       if (!tailoringData && !isGenerating) {
         handleGenerateLegacyDrafts();
       }
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, job?.id, candidateProfileId, activeTab]);
 
   const loadArchetypes = async () => {
     try {
@@ -301,7 +308,7 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
         <div style="font-size:9pt;text-align:justify;margin-bottom:4px;">${atsResume.summary}</div>
         <div class="section-title">Technical Skills</div>
         <div style="font-size:9pt;margin-bottom:4px;">${skillsHtml}</div>
-        <div class="section-title">Key Projects & Systems</div>
+        <div class="section-title">Professional Experience & Key Projects</div>
         <div>${projectsHtml}</div>
         <div class="section-title">Education</div>
         <div>${educationHtml}</div>
@@ -660,12 +667,12 @@ export const TailoringWorkspaceModal: React.FC<TailoringWorkspaceModalProps> = (
                     </div>
                   </div>
 
-                  {/* Key Projects */}
+                  {/* Key Experience & Projects */}
                   <div className="mb-3">
                     <div className="font-bold uppercase tracking-wider text-[11px] text-gray-900 border-b border-gray-800 pb-0.5 mb-1.5 flex justify-between items-baseline">
-                      <span>Key Projects & Systems</span>
+                      <span>Professional Experience & Projects</span>
                       <span className="text-[10px] font-normal normal-case text-gray-500 italic">
-                        (Flagship showcase prioritized)
+                        (Tailored to role)
                       </span>
                     </div>
                     <div className="space-y-2.5">
